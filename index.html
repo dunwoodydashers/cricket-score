@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cricket Scorer: Perfect Report</title>
+    <title>Cricket Scorer: Bulletproof Engine</title>
     <style>
         body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 10px; margin: 0; }
         .card { background: #1e1e1e; padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; }
@@ -38,8 +38,6 @@
         th { color: #777; font-size: 0.8rem; border-bottom: 1px solid #333; padding: 5px; text-align: center; }
         th:first-child, td:first-child { text-align: left; }
         td { padding: 8px 5px; border-bottom: 1px solid #222; font-size: 0.9rem; }
-        
-        /* Updated Strikethrough Logic */
         .out-player { color: #666; text-decoration: line-through; }
         
         .setup-field { background: #252525; border: 1px solid #444; color: white; padding: 10px; border-radius: 5px; width: 100%; box-sizing: border-box; margin-bottom: 10px;}
@@ -147,7 +145,7 @@
             return str.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
         }
 
-        let state = JSON.parse(localStorage.getItem('cricket_v21')) || {
+        let state = JSON.parse(localStorage.getItem('cricket_v22')) || {
             active: false, innings: 1, target: null, maxOvers: 20, runs: 0, wickets: 0, balls: 0,
             striker: "b1", thisOver: [], oversHistory: [],
             b1: {name: "", r: 0, b: 0, f: 0, s: 0, out: false},
@@ -281,8 +279,6 @@
 
             let cb = state.bowlers[state.currBwl];
             document.getElementById('name-bwl').innerText = `🏏 ${state.currBwl}`;
-            
-            // Added explicit Wides and NBs to the top live bowler tracker
             document.getElementById('stat-bwl').innerText = `${getOvers(cb.b)} - ${cb.r} - ${cb.w}  (Wd: ${cb.wd} | Nb: ${cb.nb})`;
 
             const batTable = document.getElementById('bat-scorecard');
@@ -299,7 +295,7 @@
                 let econ = s.b === 0 ? "0.00" : (s.r / (s.b / 6)).toFixed(2);
                 bwlTable.innerHTML += `<tr><td>${bName}${isCurr}</td><td>${getOvers(s.b)}</td><td>0</td><td>${s.r}</td><td><strong>${s.w}</strong></td><td>${econ}</td><td>${s.wd}</td><td>${s.nb}</td></tr>`;
             }
-            localStorage.setItem('cricket_v21', JSON.stringify(state));
+            localStorage.setItem('cricket_v22', JSON.stringify(state));
         }
 
         function checkOverAndInnings() {
@@ -311,13 +307,18 @@
                 else { render(); setTimeout(() => alert("Match Over! Bowling Team Wins!"), 200); }
                 return;
             }
-            if (state.balls > 0 && state.balls % 6 === 0) {
+            
+            // BUG FIX: Ensure over only ends when total balls equal the exact required target for the next over.
+            let targetBallsForNextOver = (state.oversHistory.length + 1) * 6;
+            if (state.balls > 0 && state.balls === targetBallsForNextOver) {
                 state.oversHistory.push({ bowler: state.currBwl, balls: [...state.thisOver] });
                 state.thisOver = []; 
                 let nextBwl = prompt("End of Over! Enter next bowler's name:");
                 while(!nextBwl || nextBwl.trim() === "") nextBwl = prompt("Required: Enter bowler's name:");
                 state.currBwl = formatName(nextBwl);
                 if (!state.bowlers[state.currBwl]) state.bowlers[state.currBwl] = {o: 0, b: 0, r: 0, w: 0, wd: 0, nb: 0};
+                
+                render(); // Immediately paint the new bowler's name to the screen
             }
         }
 
@@ -365,7 +366,7 @@
             if (r === 4) state[state.striker].f += 1;
             if (r === 6) state[state.striker].s += 1;
             state.bowlers[state.currBwl].r += r; state.bowlers[state.currBwl].b += 1;
-            if (r % 2 !== 0 || state.balls % 6 === 0) swap(false);
+            if (r % 2 !== 0 || state.balls === (state.oversHistory.length + 1) * 6) swap(false);
             render(); checkOverAndInnings();
         }
 
@@ -406,7 +407,7 @@
                 let nextName = prompt("WICKET! Who is the new batsman?");
                 state[state.striker] = {name: formatName(nextName || "Batter " + (state.wickets + 2)), r: 0, b: 0, f: 0, s: 0, out: false};
             }
-            if (state.balls % 6 === 0) swap(false);
+            if (state.balls === (state.oversHistory.length + 1) * 6) swap(false);
             render(); checkOverAndInnings();
         }
 
@@ -428,16 +429,15 @@
 
         function resetMatch() {
             if(confirm("Are you sure you want to erase this match completely and start a new one?")) {
-                localStorage.removeItem('cricket_v21');
+                localStorage.removeItem('cricket_v22');
                 location.reload();
             }
         }
 
         function padStr(str, length) { return (str + " ".repeat(length)).substring(0, length); }
 
-        // Advanced Canvas Generator with dynamic height and true strikethroughs
         function downloadScorecardImage() {
-            let instructions = []; // Stores text, color, and strikethrough status
+            let instructions = []; 
             function addLine(txt, color = '#ffffff', strike = false) {
                 instructions.push({ text: txt, color: color, strike: strike });
             }
@@ -458,7 +458,6 @@
                 d.batters.forEach(b => {
                     let st = b.out ? " " : "*";
                     let lineText = padStr(b.name + st, 15) + padStr(`${b.r} (${b.b})`, 10) + `[4s: ${b.f}, 6s: ${b.s}]`;
-                    // If out, make it grey and apply strikethrough
                     addLine(lineText, b.out ? '#777777' : '#ffffff', b.out);
                 });
                 
@@ -528,11 +527,9 @@
             addLine("=================================================", '#fbbf24');
             addLine("Generated by Dunwoody Dashers Scorer", '#aaa');
 
-            // Draw to Canvas
             let canvas = document.createElement('canvas');
             let ctx = canvas.getContext('2d');
             
-            // Expanded Canvas dynamically to perfectly fit everything!
             canvas.width = 650; 
             canvas.height = (instructions.length * 20) + 60; 
             
@@ -546,7 +543,6 @@
                 ctx.fillStyle = instr.color;
                 ctx.fillText(instr.text, 25, y);
                 
-                // Physically draws a line through the text if it is an out batsman!
                 if (instr.strike) {
                     let textWidth = ctx.measureText(instr.text).width;
                     ctx.beginPath();
@@ -558,7 +554,6 @@
                 }
             });
 
-            // Download Trigger
             let link = document.createElement('a');
             link.href = canvas.toDataURL('image/png');
             let dateStr = new Date().toISOString().split('T')[0];
