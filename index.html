@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cricket Scorer: Match Summary</title>
+    <title>Cricket Scorer: Complete Receipt</title>
     <style>
         body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 10px; margin: 0; }
         .card { background: #1e1e1e; padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; }
@@ -145,7 +145,7 @@
             return str.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
         }
 
-        let state = JSON.parse(localStorage.getItem('cricket_v18')) || {
+        let state = JSON.parse(localStorage.getItem('cricket_v19')) || {
             active: false, innings: 1, target: null, maxOvers: 20, runs: 0, wickets: 0, balls: 0,
             striker: "b1", thisOver: [], oversHistory: [],
             b1: {name: "", r: 0, b: 0, f: 0, s: 0, out: false},
@@ -240,6 +240,21 @@
                     html += `<tr><td>${bName}</td><td>${getOvers(s.b)}</td><td>0</td><td>${s.r}</td><td><strong>${s.w}</strong></td><td>${econ}</td><td>${extras}</td></tr>`;
                 }
                 html += `</tbody></table>`;
+
+                if(d.oversHistory && d.oversHistory.length > 0) {
+                    html += `<h4 style="color:#aaa; margin-top:15px; margin-bottom:5px; font-size:0.9rem;">1st Innings Over Log</h4>`;
+                    d.oversHistory.forEach((ov, idx) => {
+                        let bHtml = ov.balls.map(b => {
+                            let disp = (b === 0 || b === '0') ? '•' : b;
+                            let style = '';
+                            if(b=='W') style='background:#ef4444;';
+                            else if(b=='4'||b=='6') style='background:#fbbf24;color:black;';
+                            else if(b.toString().includes('WD')||b.toString().includes('NB')) style='background:#3b82f6;';
+                            return `<span class="hb-badge" style="margin-right:2px; ${style}">${disp}</span>`;
+                        }).join('');
+                        html += `<div class="history-row" style="margin-bottom:4px;"><span><span style="color:#aaa; font-size:0.8rem;">Ov ${idx+1}</span> <span class="history-bowler">${ov.bowler}</span></span><span class="history-balls">${bHtml}</span></div>`;
+                    });
+                }
                 document.getElementById('prev-innings-content').innerHTML = html;
 
                 let tb = document.getElementById('target-disp');
@@ -282,7 +297,7 @@
                 let extras = (s.wd > 0 || s.nb > 0) ? `${s.wd}w ${s.nb}n` : `-`;
                 bwlTable.innerHTML += `<tr><td>${bName}${isCurr}</td><td>${getOvers(s.b)}</td><td>0</td><td>${s.r}</td><td><strong>${s.w}</strong></td><td>${econ}</td><td>${extras}</td></tr>`;
             }
-            localStorage.setItem('cricket_v18', JSON.stringify(state));
+            localStorage.setItem('cricket_v19', JSON.stringify(state));
         }
 
         function checkOverAndInnings() {
@@ -411,12 +426,11 @@
 
         function resetMatch() {
             if(confirm("Are you sure you want to erase this match completely and start a new one?")) {
-                localStorage.removeItem('cricket_v18');
+                localStorage.removeItem('cricket_v19');
                 location.reload();
             }
         }
 
-        // Space padding helper for clean alignment
         function padStr(str, length) { return (str + " ".repeat(length)).substring(0, length); }
 
         function downloadScorecardTXT() {
@@ -443,6 +457,15 @@
                     let figs = `${getOvers(s.b)} - 0 - ${s.r} - ${s.w}`;
                     txt += padStr(bName, 15) + padStr(figs, 18) + `(Econ: ${econ}, Wd: ${s.wd}, NB: ${s.nb})\n`;
                 }
+
+                // NEW: 1st Innings Over Log
+                if (d.oversHistory && d.oversHistory.length > 0) {
+                    txt += "\nOVER-BY-OVER LOG:\n";
+                    d.oversHistory.forEach((ov, idx) => {
+                        let ballStr = ov.balls.map(b => (b === 0 || b === '0') ? '.' : b).join(' ');
+                        txt += padStr(`Ov ${idx + 1}: ${ov.bowler}`, 22) + `[ ${ballStr} ]\n`;
+                    });
+                }
                 txt += "\n-----------------------------------------\n\n";
             }
 
@@ -468,6 +491,20 @@
                 let econ = s.b === 0 ? "0.00" : (s.r / (s.b / 6)).toFixed(2);
                 let figs = `${getOvers(s.b)} - 0 - ${s.r} - ${s.w}`;
                 txt += padStr(bName, 15) + padStr(figs, 18) + `(Econ: ${econ}, Wd: ${s.wd}, NB: ${s.nb})\n`;
+            }
+
+            // NEW: 2nd Innings Over Log
+            let currentOversHistory = [...state.oversHistory];
+            // Push the current incomplete over into the list for the receipt
+            if (state.thisOver.length > 0) {
+                currentOversHistory.push({ bowler: state.currBwl, balls: [...state.thisOver] });
+            }
+            if (currentOversHistory.length > 0) {
+                txt += "\nOVER-BY-OVER LOG:\n";
+                currentOversHistory.forEach((ov, idx) => {
+                    let ballStr = ov.balls.map(b => (b === 0 || b === '0') ? '.' : b).join(' ');
+                    txt += padStr(`Ov ${idx + 1}: ${ov.bowler}`, 22) + `[ ${ballStr} ]\n`;
+                });
             }
 
             txt += "\n=========================================\n";
