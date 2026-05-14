@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick Cricket Scorer</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; background: #f4f4f4; padding: 20px; }
+        .score-box { background: #222; color: #fff; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+        .score { font-size: 3rem; font-weight: bold; }
+        .btn-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; max-width: 400px; margin: 0 auto; }
+        button { padding: 15px; font-size: 1.2rem; border: none; border-radius: 5px; cursor: pointer; }
+        .run { background: #ddd; }
+        .boundary { background: #ffd700; font-weight: bold; }
+        .wicket { background: #ff4d4d; color: white; }
+        .extra { background: #87ceeb; }
+        .controls { margin-top: 20px; }
+        .undo { background: #bbb; width: 100%; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <div class="score-box">
+        <div id="team-name">Live Match</div>
+        <div class="score" id="display-score">0 - 0</div>
+        <div id="display-overs">Overs: 0.0</div>
+    </div>
+
+    <div class="btn-grid">
+        <button class="run" onclick="addBall(0)">0</button>
+        <button class="run" onclick="addBall(1)">1</button>
+        <button class="run" onclick="addBall(2)">2</button>
+        <button class="run" onclick="addBall(3)">3</button>
+        <button class="boundary" onclick="addBall(4)">4</button>
+        <button class="boundary" onclick="addBall(6)">6</button>
+        <button class="extra" onclick="addExtra('wd')">WD</button>
+        <button class="extra" onclick="addExtra('nb')">NB</button>
+        <button class="wicket" onclick="addWicket()" style="grid-column: span 4;">WICKET</button>
+    </div>
+
+    <div class="controls">
+        <button class="undo" onclick="undo()">Undo Last Ball</button>
+        <button class="undo" onclick="resetMatch()" style="background:#ff9999">Reset Match</button>
+    </div>
+
+    <script>
+        let matchData = JSON.parse(localStorage.getItem('match')) || { runs: 0, wickets: 0, balls: 0, history: [] };
+
+        function updateDisplay() {
+            const overs = Math.floor(matchData.balls / 6);
+            const ballsInOver = matchData.balls % 6;
+            document.getElementById('display-score').innerText = `${matchData.runs} - ${matchData.wickets}`;
+            document.getElementById('display-overs').innerText = `Overs: ${overs}.${ballsInOver}`;
+            localStorage.setItem('match', JSON.stringify(matchData));
+        }
+
+        function addBall(r) {
+            saveHistory();
+            matchData.runs += r;
+            matchData.balls += 1;
+            updateDisplay();
+        }
+
+        function addExtra(type) {
+            saveHistory();
+            matchData.runs += 1; // Standard 1 run for wide/nb
+            updateDisplay();
+        }
+
+        function addWicket() {
+            saveHistory();
+            if(matchData.wickets < 10) {
+                matchData.wickets += 1;
+                matchData.balls += 1;
+            }
+            updateDisplay();
+        }
+
+        function saveHistory() {
+            matchData.history.push(JSON.stringify(matchData));
+        }
+
+        function undo() {
+            if (matchData.history.length > 0) {
+                matchData = JSON.parse(matchData.history.pop());
+                updateDisplay();
+            }
+        }
+
+        function resetMatch() {
+            if(confirm("Start new match?")) {
+                matchData = { runs: 0, wickets: 0, balls: 0, history: [] };
+                updateDisplay();
+            }
+        }
+
+        updateDisplay();
+    </script>
+</body>
+</html>
