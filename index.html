@@ -3,27 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quick Cricket Scorer</title>
+    <title>Advanced Cricket Scorer</title>
     <style>
-        body { font-family: sans-serif; text-align: center; background: #f4f4f4; padding: 20px; }
-        .score-box { background: #222; color: #fff; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
-        .score { font-size: 3rem; font-weight: bold; }
-        .btn-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; max-width: 400px; margin: 0 auto; }
-        button { padding: 15px; font-size: 1.2rem; border: none; border-radius: 5px; cursor: pointer; }
-        .run { background: #ddd; }
-        .boundary { background: #ffd700; font-weight: bold; }
-        .wicket { background: #ff4d4d; color: white; }
-        .extra { background: #87ceeb; }
-        .controls { margin-top: 20px; }
-        .undo { background: #bbb; width: 100%; margin-top: 10px; }
+        body { font-family: sans-serif; background: #1a1a1a; color: white; padding: 15px; margin: 0; }
+        .card { background: #2d2d2d; padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #444; }
+        input { background: #444; border: 1px solid #666; color: white; padding: 8px; border-radius: 5px; width: 80%; margin: 5px 0; }
+        .score-header { font-size: 2.5rem; font-weight: bold; color: #4ade80; margin: 10px 0; }
+        .btn-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 15px; }
+        button { padding: 15px 5px; font-size: 1.1rem; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .run { background: #555; color: white; }
+        .boundary { background: #fbbf24; color: #000; }
+        .wicket { background: #ef4444; color: white; grid-column: span 2; }
+        .extra { background: #3b82f6; color: white; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.9rem; }
+        th { text-align: left; color: #999; border-bottom: 1px solid #444; padding: 5px; }
+        td { padding: 8px 5px; border-bottom: 1px solid #333; }
+        .active-player { color: #4ade80; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <div class="score-box">
-        <div id="team-name">Live Match</div>
-        <div class="score" id="display-score">0 - 0</div>
+    <div class="card">
+        <input type="text" id="team-name" placeholder="Team Name" oninput="saveData()">
+        <div class="score-header" id="display-score">0 - 0</div>
         <div id="display-overs">Overs: 0.0</div>
+    </div>
+
+    <div class="card">
+        <strong>Current Batter:</strong><br>
+        <input type="text" id="batter-name" placeholder="Batter Name" oninput="saveData()"><br>
+        <strong>Current Bowler:</strong><br>
+        <input type="text" id="bowler-name" placeholder="Bowler Name" oninput="saveData()">
     </div>
 
     <div class="btn-grid">
@@ -33,68 +43,109 @@
         <button class="run" onclick="addBall(3)">3</button>
         <button class="boundary" onclick="addBall(4)">4</button>
         <button class="boundary" onclick="addBall(6)">6</button>
-        <button class="extra" onclick="addExtra('wd')">WD</button>
-        <button class="extra" onclick="addExtra('nb')">NB</button>
-        <button class="wicket" onclick="addWicket()" style="grid-column: span 4;">WICKET</button>
+        <button class="extra" onclick="addExtra()">WD/NB</button>
+        <button class="wicket" onclick="addWicket()">WICKET</button>
+        <button class="run" style="grid-column: span 2; background:#777" onclick="undo()">UNDO</button>
+        <button class="run" style="grid-column: span 2; background:#333" onclick="resetMatch()">RESET</button>
     </div>
 
-    <div class="controls">
-        <button class="undo" onclick="undo()">Undo Last Ball</button>
-        <button class="undo" onclick="resetMatch()" style="background:#ff9999">Reset Match</button>
+    <div class="card">
+        <h3>Live Scorecard</h3>
+        <table>
+            <thead><tr><th>Batter</th><th>Runs</th><th>Balls</th><th>4s/6s</th></tr></thead>
+            <tbody id="scorecard-body"></tbody>
+        </table>
     </div>
 
     <script>
-        let matchData = JSON.parse(localStorage.getItem('match')) || { runs: 0, wickets: 0, balls: 0, history: [] };
+        let match = JSON.parse(localStorage.getItem('cricket_pro')) || {
+            runs: 0, wickets: 0, balls: 0,
+            team: "", batter: "", bowler: "",
+            history: [],
+            stats: {} // Tracks individual batter runs
+        };
 
-        function updateDisplay() {
-            const overs = Math.floor(matchData.balls / 6);
-            const ballsInOver = matchData.balls % 6;
-            document.getElementById('display-score').innerText = `${matchData.runs} - ${matchData.wickets}`;
-            document.getElementById('display-overs').innerText = `Overs: ${overs}.${ballsInOver}`;
-            localStorage.setItem('match', JSON.stringify(matchData));
+        function updateUI() {
+            document.getElementById('team-name').value = match.team;
+            document.getElementById('batter-name').value = match.batter;
+            document.getElementById('bowler-name').value = match.bowler;
+            
+            const overs = `${Math.floor(match.balls / 6)}.${match.balls % 6}`;
+            document.getElementById('display-score').innerText = `${match.runs} - ${match.wickets}`;
+            document.getElementById('display-overs').innerText = `Overs: ${overs}`;
+            
+            renderScorecard();
+            localStorage.setItem('cricket_pro', JSON.stringify(match));
+        }
+
+        function saveData() {
+            match.team = document.getElementById('team-name').value;
+            match.batter = document.getElementById('batter-name').value;
+            match.bowler = document.getElementById('bowler-name').value;
+            localStorage.setItem('cricket_pro', JSON.stringify(match));
         }
 
         function addBall(r) {
             saveHistory();
-            matchData.runs += r;
-            matchData.balls += 1;
-            updateDisplay();
+            const bName = match.batter || "Unknown Batter";
+            if (!match.stats[bName]) match.stats[bName] = { r: 0, b: 0, f4: 0, s6: 0 };
+            
+            match.runs += r;
+            match.balls += 1;
+            match.stats[bName].r += r;
+            match.stats[bName].b += 1;
+            if (r === 4) match.stats[bName].f4 += 1;
+            if (r === 6) match.stats[bName].s6 += 1;
+            
+            updateUI();
         }
 
-        function addExtra(type) {
+        function addExtra() {
             saveHistory();
-            matchData.runs += 1; // Standard 1 run for wide/nb
-            updateDisplay();
+            match.runs += 1;
+            updateUI();
         }
 
         function addWicket() {
             saveHistory();
-            if(matchData.wickets < 10) {
-                matchData.wickets += 1;
-                matchData.balls += 1;
+            match.wickets += 1;
+            match.balls += 1;
+            updateUI();
+        }
+
+        function renderScorecard() {
+            const body = document.getElementById('scorecard-body');
+            body.innerHTML = "";
+            for (let name in match.stats) {
+                const s = match.stats[name];
+                const row = `<tr>
+                    <td class="${name === match.batter ? 'active-player' : ''}">${name}</td>
+                    <td>${s.r}</td><td>${s.b}</td><td>${s.f4}/${s.s6}</td>
+                </tr>`;
+                body.innerHTML += row;
             }
-            updateDisplay();
         }
 
         function saveHistory() {
-            matchData.history.push(JSON.stringify(matchData));
+            match.history.push(JSON.stringify({runs: match.runs, wickets: match.wickets, balls: match.balls, stats: JSON.parse(JSON.stringify(match.stats))}));
         }
 
         function undo() {
-            if (matchData.history.length > 0) {
-                matchData = JSON.parse(matchData.history.pop());
-                updateDisplay();
+            if (match.history.length > 0) {
+                const prev = JSON.parse(match.history.pop());
+                Object.assign(match, prev);
+                updateUI();
             }
         }
 
         function resetMatch() {
-            if(confirm("Start new match?")) {
-                matchData = { runs: 0, wickets: 0, balls: 0, history: [] };
-                updateDisplay();
+            if(confirm("Reset everything?")) {
+                localStorage.removeItem('cricket_pro');
+                location.reload();
             }
         }
 
-        updateDisplay();
+        updateUI();
     </script>
 </body>
 </html>
