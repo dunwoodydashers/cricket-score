@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cricket Scorer: Match Engine</title>
+    <title>Cricket Scorer: Pro Engine</title>
     <style>
         body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 10px; margin: 0; }
         .card { background: #1e1e1e; padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; }
@@ -39,12 +39,11 @@
         h4 { margin: 0 0 10px 0; color: #4ade80; }
         
         .admin-btns { display: flex; gap: 10px; margin-bottom: 40px; margin-top: 15px; }
-        .btn-half { width: 100%; padding: 15px; background: #444; }
+        .btn-admin { flex: 1; padding: 15px; background: #444; border-radius: 8px; border: none; color: white; font-weight: bold; cursor: pointer; }
 
-        /* Styles for the Collapsible 1st Innings Card */
         details summary { cursor: pointer; padding: 10px; background: #333; border-radius: 5px; font-weight: bold; outline: none; }
         details[open] summary { margin-bottom: 10px; }
-        .prev-card-container { background: #1a1a1a; padding: 10px; border-radius: 8px; border: 1px solid #444; }
+        .prev-card-container { background: #1a1a1a; padding: 10px; border-radius: 8px; border: 1px solid #444; overflow-x: auto;}
     </style>
 </head>
 <body>
@@ -57,7 +56,7 @@
         <input type="text" id="b1-init" class="setup-field" placeholder="Opener 1 Name">
         <input type="text" id="b2-init" class="setup-field" placeholder="Opener 2 Name">
         <input type="text" id="bwl-init" class="setup-field" placeholder="Opening Bowler Name">
-        <button onclick="initMatch()" style="background:#4ade80; color:black; width:100%; padding: 15px; font-size: 1.2rem;">START MATCH</button>
+        <button onclick="initMatch()" style="background:#4ade80; color:black; width:100%; padding: 15px; font-size: 1.2rem; border-radius: 8px; font-weight: bold;">START MATCH</button>
     </div>
 
     <div id="score-screen" style="display:none;">
@@ -119,19 +118,20 @@
         </div>
 
         <div class="admin-btns">
-            <button class="btn-half" onclick="undo()">Undo Last</button>
-            <button class="btn-half" style="background:#8b5cf6;" onclick="manualEndInnings()">End Innings</button>
+            <button class="btn-admin" onclick="undo()">Undo Last</button>
+            <button class="btn-admin" style="background:#8b5cf6;" onclick="manualEndInnings()">End Innings</button>
+            <button class="btn-admin" style="background:#ef4444;" onclick="resetMatch()">New Match</button>
         </div>
     </div>
 
     <script>
-        let state = JSON.parse(localStorage.getItem('cricket_v8')) || {
+        let state = JSON.parse(localStorage.getItem('cricket_v9')) || {
             active: false, innings: 1, target: null, maxOvers: 20, runs: 0, wickets: 0, balls: 0,
             striker: "b1", thisOver: [],
             b1: {name: "", r: 0, b: 0, f: 0, s: 0, out: false},
             b2: {name: "", r: 0, b: 0, f: 0, s: 0, out: false},
             others: [], currBwl: "", bowlers: {}, history: [],
-            innings1Data: null // Stores the snapshot of 1st innings
+            innings1Data: null 
         };
 
         function initMatch() {
@@ -193,7 +193,6 @@
                 prevCard.style.display = "none";
             }
 
-            // Live Match Data
             document.getElementById('main-score').innerText = `${state.runs} - ${state.wickets}`;
             document.getElementById('main-overs').innerText = `Overs: ${getOvers(state.balls)} / ${state.maxOvers}`;
             
@@ -226,20 +225,18 @@
                 let econ = s.b === 0 ? "0.00" : (s.r / (s.b / 6)).toFixed(2);
                 bwlTable.innerHTML += `<tr><td>${bName}${isCurr}</td><td>${getOvers(s.b)}</td><td>0</td><td>${s.r}</td><td><strong>${s.w}</strong></td><td>${econ}</td></tr>`;
             }
-            localStorage.setItem('cricket_v8', JSON.stringify(state));
+            localStorage.setItem('cricket_v9', JSON.stringify(state));
         }
 
         function checkOverAndInnings() {
             if (state.innings === 2 && state.runs >= state.target) {
                 render(); setTimeout(() => alert("Match Over! Batting Team Wins!"), 200); return;
             }
-
             if (state.wickets >= 10 || state.balls >= (state.maxOvers * 6)) {
                 if (state.innings === 1) processInningsBreak();
                 else { render(); setTimeout(() => alert("Match Over! Bowling Team Wins!"), 200); }
                 return;
             }
-
             if (state.balls > 0 && state.balls % 6 === 0) {
                 state.thisOver = []; 
                 let nextBwl = prompt("End of Over! Enter next bowler's name:");
@@ -250,15 +247,12 @@
         }
 
         function processInningsBreak() {
-            // Snapshot First Innings Data before clearing
             let activeB1 = {...state.b1, name: state.b1.name + "*", out: false};
             let activeB2 = {...state.b2, name: state.b2.name + "*", out: false};
             
             state.innings1Data = {
-                runs: state.runs,
-                wickets: state.wickets,
-                balls: state.balls,
-                batters: [...state.others, activeB1, activeB2].filter(b => b.b > 0 || b.r > 0), // Only save those who faced a ball
+                runs: state.runs, wickets: state.wickets, balls: state.balls,
+                batters: [...state.others, activeB1, activeB2].filter(b => b.b > 0 || b.r > 0),
                 bowlers: JSON.parse(JSON.stringify(state.bowlers))
             };
 
@@ -267,9 +261,7 @@
             
             state.innings = 2;
             state.runs = 0; state.wickets = 0; state.balls = 0;
-            state.thisOver = [];
-            state.others = [];
-            state.bowlers = {};
+            state.thisOver = []; state.others = []; state.bowlers = {};
             
             state.b1 = {name: prompt("Innings 2 - Opener 1 Name:") || "Batter 1", r: 0, b: 0, f: 0, s: 0, out: false};
             state.b2 = {name: prompt("Innings 2 - Opener 2 Name:") || "Batter 2", r: 0, b: 0, f: 0, s: 0, out: false};
@@ -334,6 +326,13 @@
 
         function pushHistory() { state.history.push(JSON.stringify({...state, history: []})); }
         function undo() { if(state.history.length > 0) { state = JSON.parse(state.history.pop()); render(); } }
+
+        function resetMatch() {
+            if(confirm("Are you sure you want to erase this match completely and start a new one?")) {
+                localStorage.removeItem('cricket_v9');
+                location.reload();
+            }
+        }
 
         render();
     </script>
