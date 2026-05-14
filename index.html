@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cricket Scorer: Unified Engine</title>
+    <title>Cricket Scorer: Match Exporter</title>
     <style>
         body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 10px; margin: 0; }
         .card { background: #1e1e1e; padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; }
@@ -43,8 +43,9 @@
         .setup-field { background: #252525; border: 1px solid #444; color: white; padding: 10px; border-radius: 5px; width: 100%; box-sizing: border-box; margin-bottom: 10px;}
         h4 { margin: 0 0 10px 0; color: #4ade80; }
         
-        .admin-btns { display: flex; gap: 10px; margin-bottom: 40px; margin-top: 15px; }
+        .admin-btns { display: flex; gap: 10px; margin-bottom: 10px; margin-top: 15px; }
         .btn-admin { flex: 1; padding: 15px; background: #444; border-radius: 8px; border: none; color: white; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-download { width: 100%; padding: 15px; background: #2563eb; border-radius: 8px; border: none; color: white; font-weight: bold; cursor: pointer; margin-bottom: 40px; }
 
         details summary { cursor: pointer; padding: 10px; background: #333; border-radius: 5px; font-weight: bold; outline: none; }
         details[open] summary { margin-bottom: 10px; }
@@ -75,7 +76,6 @@
             <div id="target-disp" class="target-box">Target: --</div>
             <div class="score-big" id="main-score">0 - 0</div>
             <div class="ov" id="main-overs">Overs: 0.0</div>
-            
             <div class="this-over-container">
                 This Over: <span id="this-over-tracker"></span>
             </div>
@@ -135,16 +135,17 @@
             <button class="btn-admin" style="background:#8b5cf6;" onclick="manualEndInnings()">End Innings</button>
             <button class="btn-admin" style="background:#ef4444;" onclick="resetMatch()">New Match</button>
         </div>
+        
+        <button class="btn-download" onclick="downloadScorecard()">📥 Download Full Scorecard (.txt)</button>
     </div>
 
     <script>
-        // Formats " venkat " or "VENKAT" to "Venkat"
         function formatName(str) {
             if (!str) return "";
             return str.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
         }
 
-        let state = JSON.parse(localStorage.getItem('cricket_v15')) || {
+        let state = JSON.parse(localStorage.getItem('cricket_v16')) || {
             active: false, innings: 1, target: null, maxOvers: 20, runs: 0, wickets: 0, balls: 0,
             striker: "b1", thisOver: [], oversHistory: [],
             b1: {name: "", r: 0, b: 0, f: 0, s: 0, out: false},
@@ -157,11 +158,9 @@
             state.maxOvers = parseInt(document.getElementById('max-overs').value) || 20;
             state.b1.name = formatName(document.getElementById('b1-init').value || "Batter 1");
             state.b2.name = formatName(document.getElementById('b2-init').value || "Batter 2");
-            
             let openingBowler = formatName(document.getElementById('bwl-init').value || "Bowler 1");
             state.currBwl = openingBowler;
             state.bowlers[openingBowler] = {o: 0, b: 0, r: 0, w: 0, wd: 0, nb: 0};
-            
             state.active = true;
             render();
         }
@@ -170,7 +169,7 @@
 
         function getBallHtml(b) {
             let cls = 'ball-badge';
-            let displayB = (b === 0 || b === '0') ? '•' : b; // Convert 0s to dots
+            let displayB = (b === 0 || b === '0') ? '•' : b; 
             if(b == '4' || b == '6') cls += ' bb-bound';
             else if(b == 'W') cls += ' bb-wicket';
             else if(typeof b === 'string' && (b.includes('WD') || b.includes('NB'))) cls += ' bb-extra';
@@ -180,7 +179,7 @@
         function renderThisOver() {
             let html = state.thisOver.map(getBallHtml).join('');
             document.getElementById('this-over-tracker').innerHTML = html || '-';
-            document.getElementById('bwl-this-over').innerHTML = html; // Also render inside bowler card
+            document.getElementById('bwl-this-over').innerHTML = html; 
         }
 
         function renderHistoryLog() {
@@ -210,7 +209,6 @@
             document.getElementById('setup-screen').style.display = "none";
             document.getElementById('score-screen').style.display = "block";
             
-            // Undo Logic
             let uBtn = document.getElementById('undo-btn');
             if(state.history.length > 0) {
                 uBtn.innerText = `Undo (${state.history.length})`;
@@ -220,7 +218,6 @@
                 uBtn.style.opacity = "0.5";
             }
 
-            // Snapshot Logic with 1st Innings Ball-by-Ball RESTORED!
             let prevCard = document.getElementById('prev-innings-card');
             if (state.innings === 2 && state.innings1Data) {
                 prevCard.style.display = "block";
@@ -244,7 +241,6 @@
                 }
                 html += `</tbody></table>`;
 
-                // Render 1st Innings Ball-by-Ball Tracking
                 if(d.oversHistory && d.oversHistory.length > 0) {
                     html += `<h4 style="color:#aaa; margin-top:15px; margin-bottom:5px; font-size:0.9rem;">1st Innings Over Log</h4>`;
                     d.oversHistory.forEach((ov, idx) => {
@@ -259,7 +255,6 @@
                         html += `<div class="history-row" style="margin-bottom:4px;"><span><span style="color:#aaa; font-size:0.8rem;">Ov ${idx+1}</span> <span class="history-bowler">${ov.bowler}</span></span><span class="history-balls">${bHtml}</span></div>`;
                     });
                 }
-
                 document.getElementById('prev-innings-content').innerHTML = html;
 
                 let tb = document.getElementById('target-disp');
@@ -302,7 +297,7 @@
                 let extras = (s.wd > 0 || s.nb > 0) ? `${s.wd}w ${s.nb}n` : `-`;
                 bwlTable.innerHTML += `<tr><td>${bName}${isCurr}</td><td>${getOvers(s.b)}</td><td>0</td><td>${s.r}</td><td><strong>${s.w}</strong></td><td>${econ}</td><td>${extras}</td></tr>`;
             }
-            localStorage.setItem('cricket_v15', JSON.stringify(state));
+            localStorage.setItem('cricket_v16', JSON.stringify(state));
         }
 
         function checkOverAndInnings() {
@@ -334,7 +329,7 @@
                 runs: state.runs, wickets: state.wickets, balls: state.balls,
                 batters: [...state.others, activeB1, activeB2].filter(b => b.b > 0 || b.r > 0),
                 bowlers: JSON.parse(JSON.stringify(state.bowlers)),
-                oversHistory: JSON.parse(JSON.stringify(state.oversHistory)) // THIS now renders correctly!
+                oversHistory: JSON.parse(JSON.stringify(state.oversHistory))
             };
 
             state.target = state.runs + 1;
@@ -347,11 +342,9 @@
             
             state.b1 = {name: formatName(prompt("Innings 2 - Opener 1 Name:") || "Batter 1"), r: 0, b: 0, f: 0, s: 0, out: false};
             state.b2 = {name: formatName(prompt("Innings 2 - Opener 2 Name:") || "Batter 2"), r: 0, b: 0, f: 0, s: 0, out: false};
-            
             let openingBowler = formatName(prompt("Innings 2 - Opening Bowler:") || "Bowler 1");
             state.currBwl = openingBowler;
             state.bowlers[openingBowler] = {o: 0, b: 0, r: 0, w: 0, wd: 0, nb: 0};
-            
             state.striker = "b1";
             render();
         }
@@ -434,9 +427,71 @@
 
         function resetMatch() {
             if(confirm("Are you sure you want to erase this match completely and start a new one?")) {
-                localStorage.removeItem('cricket_v15');
+                localStorage.removeItem('cricket_v16');
                 location.reload();
             }
+        }
+
+        // NEW: Download Scorecard Function
+        function downloadScorecard() {
+            let txt = "=============================\n";
+            txt += "      MATCH SCORECARD        \n";
+            txt += "=============================\n\n";
+
+            // If there's a first innings recorded
+            let d = state.innings1Data;
+            if (d) {
+                txt += "=== FIRST INNINGS ===\n";
+                txt += `Total: ${d.runs} / ${d.wickets} in ${getOvers(d.balls)} Overs\n\n`;
+                txt += "BATTING:\n";
+                d.batters.forEach(b => {
+                    let st = b.out ? "" : "*";
+                    txt += `- ${b.name}${st}: ${b.r} runs off ${b.b} balls (4s:${b.f}, 6s:${b.s})\n`;
+                });
+                txt += "\nBOWLING:\n";
+                for (let bName in d.bowlers) {
+                    let s = d.bowlers[bName];
+                    let econ = s.b === 0 ? "0.00" : (s.r / (s.b / 6)).toFixed(2);
+                    txt += `- ${bName}: ${getOvers(s.b)} Overs, ${s.r} Runs, ${s.w} Wickets (Econ: ${econ}, Wides: ${s.wd}, NBs: ${s.nb})\n`;
+                }
+                txt += "\n-----------------------------\n\n";
+            }
+
+            // Current / Second Innings
+            txt += d ? "=== SECOND INNINGS ===\n" : "=== CURRENT INNINGS ===\n";
+            txt += `Total: ${state.runs} / ${state.wickets} in ${getOvers(state.balls)} Overs\n`;
+            if (d) txt += `Target was: ${state.target}\n`;
+            txt += "\nBATTING:\n";
+            
+            let allCurrentBatters = [...state.others];
+            if (state.b1.b > 0 || state.b1.r > 0 || !state.b1.out) allCurrentBatters.push({...state.b1, out: false});
+            if (state.b2.b > 0 || state.b2.r > 0 || !state.b2.out) allCurrentBatters.push({...state.b2, out: false});
+            
+            allCurrentBatters.forEach(b => {
+                if (!b.name) return;
+                let st = b.out ? "" : "*";
+                txt += `- ${b.name}${st}: ${b.r} runs off ${b.b} balls (4s:${b.f}, 6s:${b.s})\n`;
+            });
+            
+            txt += "\nBOWLING:\n";
+            for (let bName in state.bowlers) {
+                let s = state.bowlers[bName];
+                let econ = s.b === 0 ? "0.00" : (s.r / (s.b / 6)).toFixed(2);
+                txt += `- ${bName}: ${getOvers(s.b)} Overs, ${s.r} Runs, ${s.w} Wickets (Econ: ${econ}, Wides: ${s.wd}, NBs: ${s.nb})\n`;
+            }
+            txt += "\n=============================\n";
+            txt += "Generated by Advanced Cricket Scorer";
+
+            // Create and trigger the download
+            let blob = new Blob([txt], { type: 'text/plain' });
+            let link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            let dateStr = new Date().toISOString().split('T')[0];
+            link.download = `Cricket_Scorecard_${dateStr}.txt`;
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
 
         render();
