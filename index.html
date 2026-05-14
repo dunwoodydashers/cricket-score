@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cricket Scorer: Image Exporter</title>
+    <title>Cricket Scorer: Perfect Report</title>
     <style>
         body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 10px; margin: 0; }
         .card { background: #1e1e1e; padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; }
@@ -38,15 +38,15 @@
         th { color: #777; font-size: 0.8rem; border-bottom: 1px solid #333; padding: 5px; text-align: center; }
         th:first-child, td:first-child { text-align: left; }
         td { padding: 8px 5px; border-bottom: 1px solid #222; font-size: 0.9rem; }
-        .out-player { color: #888; text-decoration: line-through; }
+        
+        /* Updated Strikethrough Logic */
+        .out-player { color: #666; text-decoration: line-through; }
         
         .setup-field { background: #252525; border: 1px solid #444; color: white; padding: 10px; border-radius: 5px; width: 100%; box-sizing: border-box; margin-bottom: 10px;}
         h4 { margin: 0 0 10px 0; color: #4ade80; }
         
         .admin-btns { display: flex; gap: 10px; margin-bottom: 10px; margin-top: 15px; }
         .btn-admin { flex: 1; padding: 15px; background: #444; border-radius: 8px; border: none; color: white; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        
-        /* Image Download Button */
         .btn-download { width: 100%; padding: 15px; background: #db2777; border-radius: 8px; border: none; color: white; font-weight: bold; cursor: pointer; margin-bottom: 40px; font-size: 1.1rem;}
 
         details summary { cursor: pointer; padding: 10px; background: #333; border-radius: 5px; font-weight: bold; outline: none; }
@@ -127,7 +127,7 @@
         <div class="card">
             <h4 style="color: #fbbf24;">Bowling Scorecard</h4>
             <table>
-                <thead><tr><th>Bowler</th><th>O</th><th>M</th><th>R</th><th>W</th><th>Econ</th><th>Ex</th></tr></thead>
+                <thead><tr><th>Bowler</th><th>O</th><th>M</th><th>R</th><th>W</th><th>Econ</th><th>Wd</th><th>Nb</th></tr></thead>
                 <tbody id="bwl-scorecard"></tbody>
             </table>
         </div>
@@ -147,7 +147,7 @@
             return str.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
         }
 
-        let state = JSON.parse(localStorage.getItem('cricket_v20')) || {
+        let state = JSON.parse(localStorage.getItem('cricket_v21')) || {
             active: false, innings: 1, target: null, maxOvers: 20, runs: 0, wickets: 0, balls: 0,
             striker: "b1", thisOver: [], oversHistory: [],
             b1: {name: "", r: 0, b: 0, f: 0, s: 0, out: false},
@@ -228,18 +228,17 @@
                 
                 html += `<table><thead><tr><th>Batter</th><th>R</th><th>B</th><th>4s</th><th>6s</th></tr></thead><tbody>`;
                 d.batters.forEach(b => {
-                    let cls = b.out ? "out-player" : "";
-                    html += `<tr class="${cls}"><td>${b.name}</td><td>${b.r}</td><td>${b.b}</td><td>${b.f}</td><td>${b.s}</td></tr>`;
+                    let cls = b.out ? "class='out-player'" : "";
+                    html += `<tr ${cls}><td>${b.name}</td><td>${b.r}</td><td>${b.b}</td><td>${b.f}</td><td>${b.s}</td></tr>`;
                 });
                 html += `</tbody></table>`;
                 
                 html += `<h4 style="color:#fbbf24; margin-top:15px; margin-bottom:5px;">Bowling</h4>`;
-                html += `<table><thead><tr><th>Bowler</th><th>O</th><th>M</th><th>R</th><th>W</th><th>Econ</th><th>Ex</th></tr></thead><tbody>`;
+                html += `<table><thead><tr><th>Bowler</th><th>O</th><th>M</th><th>R</th><th>W</th><th>Econ</th><th>Wd</th><th>Nb</th></tr></thead><tbody>`;
                 for(let bName in d.bowlers) {
                     let s = d.bowlers[bName];
                     let econ = s.b === 0 ? "0.00" : (s.r / (s.b / 6)).toFixed(2);
-                    let extras = (s.wd > 0 || s.nb > 0) ? `${s.wd}w ${s.nb}n` : `-`;
-                    html += `<tr><td>${bName}</td><td>${getOvers(s.b)}</td><td>0</td><td>${s.r}</td><td><strong>${s.w}</strong></td><td>${econ}</td><td>${extras}</td></tr>`;
+                    html += `<tr><td>${bName}</td><td>${getOvers(s.b)}</td><td>0</td><td>${s.r}</td><td><strong>${s.w}</strong></td><td>${econ}</td><td>${s.wd}</td><td>${s.nb}</td></tr>`;
                 }
                 html += `</tbody></table>`;
 
@@ -282,7 +281,9 @@
 
             let cb = state.bowlers[state.currBwl];
             document.getElementById('name-bwl').innerText = `🏏 ${state.currBwl}`;
-            document.getElementById('stat-bwl').innerText = `${getOvers(cb.b)} - ${cb.r} - ${cb.w}`;
+            
+            // Added explicit Wides and NBs to the top live bowler tracker
+            document.getElementById('stat-bwl').innerText = `${getOvers(cb.b)} - ${cb.r} - ${cb.w}  (Wd: ${cb.wd} | Nb: ${cb.nb})`;
 
             const batTable = document.getElementById('bat-scorecard');
             batTable.innerHTML = "";
@@ -296,10 +297,9 @@
                 let s = state.bowlers[bName];
                 let isCurr = (bName === state.currBwl) ? "*" : "";
                 let econ = s.b === 0 ? "0.00" : (s.r / (s.b / 6)).toFixed(2);
-                let extras = (s.wd > 0 || s.nb > 0) ? `${s.wd}w ${s.nb}n` : `-`;
-                bwlTable.innerHTML += `<tr><td>${bName}${isCurr}</td><td>${getOvers(s.b)}</td><td>0</td><td>${s.r}</td><td><strong>${s.w}</strong></td><td>${econ}</td><td>${extras}</td></tr>`;
+                bwlTable.innerHTML += `<tr><td>${bName}${isCurr}</td><td>${getOvers(s.b)}</td><td>0</td><td>${s.r}</td><td><strong>${s.w}</strong></td><td>${econ}</td><td>${s.wd}</td><td>${s.nb}</td></tr>`;
             }
-            localStorage.setItem('cricket_v20', JSON.stringify(state));
+            localStorage.setItem('cricket_v21', JSON.stringify(state));
         }
 
         function checkOverAndInnings() {
@@ -428,57 +428,69 @@
 
         function resetMatch() {
             if(confirm("Are you sure you want to erase this match completely and start a new one?")) {
-                localStorage.removeItem('cricket_v20');
+                localStorage.removeItem('cricket_v21');
                 location.reload();
             }
         }
 
-        // Helper for spacing
         function padStr(str, length) { return (str + " ".repeat(length)).substring(0, length); }
 
-        // NEW: Canvas Image Generator
+        // Advanced Canvas Generator with dynamic height and true strikethroughs
         function downloadScorecardImage() {
-            // Step 1: Build the text string
-            let txt = "=========================================\n";
-            txt += "         OFFICIAL MATCH SCORECARD        \n";
-            txt += "=========================================\n\n";
+            let instructions = []; // Stores text, color, and strikethrough status
+            function addLine(txt, color = '#ffffff', strike = false) {
+                instructions.push({ text: txt, color: color, strike: strike });
+            }
+
+            addLine("=================================================", '#fbbf24');
+            addLine("             OFFICIAL MATCH SCORECARD            ", '#fbbf24');
+            addLine("=================================================", '#fbbf24');
+            addLine("");
 
             let d = state.innings1Data;
             if (d) {
-                txt += "--- FIRST INNINGS ---\n";
-                txt += `Score:  ${d.runs} / ${d.wickets}\n`;
-                txt += `Overs:  ${getOvers(d.balls)}\n\n`;
+                addLine("--- FIRST INNINGS ---", '#fbbf24');
+                addLine(`Score:  ${d.runs} / ${d.wickets}`, '#4ade80');
+                addLine(`Overs:  ${getOvers(d.balls)}`);
+                addLine("");
                 
-                txt += "BATTING:\n";
+                addLine("BATTING:", '#8b5cf6');
                 d.batters.forEach(b => {
                     let st = b.out ? " " : "*";
-                    txt += padStr(b.name + st, 15) + padStr(`${b.r} (${b.b})`, 10) + `[4s: ${b.f}, 6s: ${b.s}]\n`;
+                    let lineText = padStr(b.name + st, 15) + padStr(`${b.r} (${b.b})`, 10) + `[4s: ${b.f}, 6s: ${b.s}]`;
+                    // If out, make it grey and apply strikethrough
+                    addLine(lineText, b.out ? '#777777' : '#ffffff', b.out);
                 });
                 
-                txt += "\nBOWLING:\n";
+                addLine("");
+                addLine("BOWLING:", '#8b5cf6');
                 for (let bName in d.bowlers) {
                     let s = d.bowlers[bName];
                     let econ = s.b === 0 ? "0.00" : (s.r / (s.b / 6)).toFixed(2);
                     let figs = `${getOvers(s.b)} - 0 - ${s.r} - ${s.w}`;
-                    txt += padStr(bName, 15) + padStr(figs, 18) + `(Econ: ${econ}, Wd: ${s.wd}, NB: ${s.nb})\n`;
+                    addLine(padStr(bName, 15) + padStr(figs, 18) + `(Econ: ${econ}, Wd: ${s.wd}, NB: ${s.nb})`);
                 }
 
                 if (d.oversHistory && d.oversHistory.length > 0) {
-                    txt += "\nOVER-BY-OVER LOG:\n";
+                    addLine("");
+                    addLine("OVER-BY-OVER LOG:", '#8b5cf6');
                     d.oversHistory.forEach((ov, idx) => {
                         let ballStr = ov.balls.map(b => (b === 0 || b === '0') ? '.' : b).join(' ');
-                        txt += padStr(`Ov ${idx + 1}: ${ov.bowler}`, 22) + `[ ${ballStr} ]\n`;
+                        addLine(padStr(`Ov ${idx + 1}: ${ov.bowler}`, 20) + `[ ${ballStr} ]`);
                     });
                 }
-                txt += "\n-----------------------------------------\n\n";
+                addLine("");
+                addLine("-------------------------------------------------", '#fbbf24');
+                addLine("");
             }
 
-            txt += d ? "--- SECOND INNINGS ---\n" : "--- CURRENT INNINGS ---\n";
-            txt += `Score:  ${state.runs} / ${state.wickets}\n`;
-            txt += `Overs:  ${getOvers(state.balls)}\n`;
-            if (d) txt += `Target: ${state.target}\n`;
+            addLine(d ? "--- SECOND INNINGS ---" : "--- CURRENT INNINGS ---", '#fbbf24');
+            addLine(`Score:  ${state.runs} / ${state.wickets}`, '#4ade80');
+            addLine(`Overs:  ${getOvers(state.balls)}`);
+            if (d) addLine(`Target: ${state.target}`);
+            addLine("");
             
-            txt += "\nBATTING:\n";
+            addLine("BATTING:", '#8b5cf6');
             let allCurrentBatters = [...state.others];
             if (state.b1.b > 0 || state.b1.r > 0 || !state.b1.out) allCurrentBatters.push({...state.b1, out: false});
             if (state.b2.b > 0 || state.b2.r > 0 || !state.b2.out) allCurrentBatters.push({...state.b2, out: false});
@@ -486,15 +498,17 @@
             allCurrentBatters.forEach(b => {
                 if (!b.name) return;
                 let st = b.out ? " " : "*";
-                txt += padStr(b.name + st, 15) + padStr(`${b.r} (${b.b})`, 10) + `[4s: ${b.f}, 6s: ${b.s}]\n`;
+                let lineText = padStr(b.name + st, 15) + padStr(`${b.r} (${b.b})`, 10) + `[4s: ${b.f}, 6s: ${b.s}]`;
+                addLine(lineText, b.out ? '#777777' : '#ffffff', b.out);
             });
             
-            txt += "\nBOWLING:\n";
+            addLine("");
+            addLine("BOWLING:", '#8b5cf6');
             for (let bName in state.bowlers) {
                 let s = state.bowlers[bName];
                 let econ = s.b === 0 ? "0.00" : (s.r / (s.b / 6)).toFixed(2);
                 let figs = `${getOvers(s.b)} - 0 - ${s.r} - ${s.w}`;
-                txt += padStr(bName, 15) + padStr(figs, 18) + `(Econ: ${econ}, Wd: ${s.wd}, NB: ${s.nb})\n`;
+                addLine(padStr(bName, 15) + padStr(figs, 18) + `(Econ: ${econ}, Wd: ${s.wd}, NB: ${s.nb})`);
             }
 
             let currentOversHistory = [...state.oversHistory];
@@ -502,51 +516,49 @@
                 currentOversHistory.push({ bowler: state.currBwl, balls: [...state.thisOver] });
             }
             if (currentOversHistory.length > 0) {
-                txt += "\nOVER-BY-OVER LOG:\n";
+                addLine("");
+                addLine("OVER-BY-OVER LOG:", '#8b5cf6');
                 currentOversHistory.forEach((ov, idx) => {
                     let ballStr = ov.balls.map(b => (b === 0 || b === '0') ? '.' : b).join(' ');
-                    txt += padStr(`Ov ${idx + 1}: ${ov.bowler}`, 22) + `[ ${ballStr} ]\n`;
+                    addLine(padStr(`Ov ${idx + 1}: ${ov.bowler}`, 20) + `[ ${ballStr} ]`);
                 });
             }
 
-            txt += "\n=========================================\n";
-            txt += "Generated by Dunwoody Dashers Scorer\n";
+            addLine("");
+            addLine("=================================================", '#fbbf24');
+            addLine("Generated by Dunwoody Dashers Scorer", '#aaa');
 
-            // Step 2: Draw text onto a Canvas
-            let lines = txt.split('\n');
+            // Draw to Canvas
             let canvas = document.createElement('canvas');
             let ctx = canvas.getContext('2d');
             
-            // Set dimensions (Monospace font, 14px height per line)
-            canvas.width = 460; 
-            canvas.height = (lines.length * 20) + 40; 
+            // Expanded Canvas dynamically to perfectly fit everything!
+            canvas.width = 650; 
+            canvas.height = (instructions.length * 20) + 60; 
             
-            // Draw Background
-            ctx.fillStyle = '#121212'; // Dark theme
+            ctx.fillStyle = '#121212';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.font = '15px "Courier New", Courier, monospace';
             
-            // Setup Font
-            ctx.font = '14px "Courier New", Courier, monospace';
-            
-            // Draw Text line by line
-            lines.forEach((line, index) => {
-                let y = 30 + (index * 20);
+            instructions.forEach((instr, index) => {
+                let y = 40 + (index * 20);
                 
-                // Color formatting
-                if (line.includes('===') || line.includes('---')) {
-                    ctx.fillStyle = '#fbbf24'; // Gold for dividers
-                } else if (line.includes('Score:') || line.includes('Total:')) {
-                    ctx.fillStyle = '#4ade80'; // Green for main score
-                } else if (line.includes('BATTING:') || line.includes('BOWLING:') || line.includes('OVER-BY-OVER')) {
-                    ctx.fillStyle = '#8b5cf6'; // Purple for headers
-                } else {
-                    ctx.fillStyle = '#ffffff'; // White for normal text
+                ctx.fillStyle = instr.color;
+                ctx.fillText(instr.text, 25, y);
+                
+                // Physically draws a line through the text if it is an out batsman!
+                if (instr.strike) {
+                    let textWidth = ctx.measureText(instr.text).width;
+                    ctx.beginPath();
+                    ctx.moveTo(25, y - 5); 
+                    ctx.lineTo(25 + textWidth, y - 5);
+                    ctx.strokeStyle = instr.color;
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
                 }
-                
-                ctx.fillText(line, 20, y);
             });
 
-            // Step 3: Convert to Image and Download
+            // Download Trigger
             let link = document.createElement('a');
             link.href = canvas.toDataURL('image/png');
             let dateStr = new Date().toISOString().split('T')[0];
