@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cricket Scorer: Pro Bowler Tracking</title>
+    <title>Cricket Scorer: Unified Engine</title>
     <style>
         body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 10px; margin: 0; }
         .card { background: #1e1e1e; padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; }
@@ -82,7 +82,7 @@
         </div>
 
         <div class="card" id="history-log-card" style="display:none;">
-            <h4 style="color: #aaa; font-size: 0.9rem; margin-bottom: 8px;">Previous Overs</h4>
+            <h4 style="color: #aaa; font-size: 0.9rem; margin-bottom: 8px;">Previous Overs (This Innings)</h4>
             <div id="history-log-list"></div>
         </div>
 
@@ -138,7 +138,13 @@
     </div>
 
     <script>
-        let state = JSON.parse(localStorage.getItem('cricket_v14')) || {
+        // Formats " venkat " or "VENKAT" to "Venkat"
+        function formatName(str) {
+            if (!str) return "";
+            return str.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+        }
+
+        let state = JSON.parse(localStorage.getItem('cricket_v15')) || {
             active: false, innings: 1, target: null, maxOvers: 20, runs: 0, wickets: 0, balls: 0,
             striker: "b1", thisOver: [], oversHistory: [],
             b1: {name: "", r: 0, b: 0, f: 0, s: 0, out: false},
@@ -149,10 +155,13 @@
 
         function initMatch() {
             state.maxOvers = parseInt(document.getElementById('max-overs').value) || 20;
-            state.b1.name = document.getElementById('b1-init').value || "Batter 1";
-            state.b2.name = document.getElementById('b2-init').value || "Batter 2";
-            state.currBwl = document.getElementById('bwl-init').value || "Bowler 1";
-            state.bowlers[state.currBwl] = {o: 0, b: 0, r: 0, w: 0, wd: 0, nb: 0};
+            state.b1.name = formatName(document.getElementById('b1-init').value || "Batter 1");
+            state.b2.name = formatName(document.getElementById('b2-init').value || "Batter 2");
+            
+            let openingBowler = formatName(document.getElementById('bwl-init').value || "Bowler 1");
+            state.currBwl = openingBowler;
+            state.bowlers[openingBowler] = {o: 0, b: 0, r: 0, w: 0, wd: 0, nb: 0};
+            
             state.active = true;
             render();
         }
@@ -211,18 +220,20 @@
                 uBtn.style.opacity = "0.5";
             }
 
-            // Snapshot Logic
+            // Snapshot Logic with 1st Innings Ball-by-Ball RESTORED!
             let prevCard = document.getElementById('prev-innings-card');
             if (state.innings === 2 && state.innings1Data) {
                 prevCard.style.display = "block";
                 let d = state.innings1Data;
                 let html = `<h4 style="text-align:center; color:white;">1st Innings Total: ${d.runs}/${d.wickets} (${getOvers(d.balls)} Ov)</h4>`;
+                
                 html += `<table><thead><tr><th>Batter</th><th>R</th><th>B</th><th>4s</th><th>6s</th></tr></thead><tbody>`;
                 d.batters.forEach(b => {
                     let cls = b.out ? "out-player" : "";
                     html += `<tr class="${cls}"><td>${b.name}</td><td>${b.r}</td><td>${b.b}</td><td>${b.f}</td><td>${b.s}</td></tr>`;
                 });
                 html += `</tbody></table>`;
+                
                 html += `<h4 style="color:#fbbf24; margin-top:15px; margin-bottom:5px;">Bowling</h4>`;
                 html += `<table><thead><tr><th>Bowler</th><th>O</th><th>M</th><th>R</th><th>W</th><th>Econ</th><th>Ex</th></tr></thead><tbody>`;
                 for(let bName in d.bowlers) {
@@ -232,6 +243,23 @@
                     html += `<tr><td>${bName}</td><td>${getOvers(s.b)}</td><td>0</td><td>${s.r}</td><td><strong>${s.w}</strong></td><td>${econ}</td><td>${extras}</td></tr>`;
                 }
                 html += `</tbody></table>`;
+
+                // Render 1st Innings Ball-by-Ball Tracking
+                if(d.oversHistory && d.oversHistory.length > 0) {
+                    html += `<h4 style="color:#aaa; margin-top:15px; margin-bottom:5px; font-size:0.9rem;">1st Innings Over Log</h4>`;
+                    d.oversHistory.forEach((ov, idx) => {
+                        let bHtml = ov.balls.map(b => {
+                            let disp = (b === 0 || b === '0') ? '•' : b;
+                            let style = '';
+                            if(b=='W') style='background:#ef4444;';
+                            else if(b=='4'||b=='6') style='background:#fbbf24;color:black;';
+                            else if(b.toString().includes('WD')||b.toString().includes('NB')) style='background:#3b82f6;';
+                            return `<span class="hb-badge" style="margin-right:2px; ${style}">${disp}</span>`;
+                        }).join('');
+                        html += `<div class="history-row" style="margin-bottom:4px;"><span><span style="color:#aaa; font-size:0.8rem;">Ov ${idx+1}</span> <span class="history-bowler">${ov.bowler}</span></span><span class="history-balls">${bHtml}</span></div>`;
+                    });
+                }
+
                 document.getElementById('prev-innings-content').innerHTML = html;
 
                 let tb = document.getElementById('target-disp');
@@ -274,7 +302,7 @@
                 let extras = (s.wd > 0 || s.nb > 0) ? `${s.wd}w ${s.nb}n` : `-`;
                 bwlTable.innerHTML += `<tr><td>${bName}${isCurr}</td><td>${getOvers(s.b)}</td><td>0</td><td>${s.r}</td><td><strong>${s.w}</strong></td><td>${econ}</td><td>${extras}</td></tr>`;
             }
-            localStorage.setItem('cricket_v14', JSON.stringify(state));
+            localStorage.setItem('cricket_v15', JSON.stringify(state));
         }
 
         function checkOverAndInnings() {
@@ -291,7 +319,7 @@
                 state.thisOver = []; 
                 let nextBwl = prompt("End of Over! Enter next bowler's name:");
                 while(!nextBwl || nextBwl.trim() === "") nextBwl = prompt("Required: Enter bowler's name:");
-                state.currBwl = nextBwl.trim();
+                state.currBwl = formatName(nextBwl);
                 if (!state.bowlers[state.currBwl]) state.bowlers[state.currBwl] = {o: 0, b: 0, r: 0, w: 0, wd: 0, nb: 0};
             }
         }
@@ -306,7 +334,7 @@
                 runs: state.runs, wickets: state.wickets, balls: state.balls,
                 batters: [...state.others, activeB1, activeB2].filter(b => b.b > 0 || b.r > 0),
                 bowlers: JSON.parse(JSON.stringify(state.bowlers)),
-                oversHistory: JSON.parse(JSON.stringify(state.oversHistory))
+                oversHistory: JSON.parse(JSON.stringify(state.oversHistory)) // THIS now renders correctly!
             };
 
             state.target = state.runs + 1;
@@ -317,10 +345,13 @@
             state.thisOver = []; state.oversHistory = []; state.others = []; state.bowlers = {};
             state.history = []; 
             
-            state.b1 = {name: prompt("Innings 2 - Opener 1 Name:") || "Batter 1", r: 0, b: 0, f: 0, s: 0, out: false};
-            state.b2 = {name: prompt("Innings 2 - Opener 2 Name:") || "Batter 2", r: 0, b: 0, f: 0, s: 0, out: false};
-            state.currBwl = prompt("Innings 2 - Opening Bowler:") || "Bowler 1";
-            state.bowlers[state.currBwl] = {o: 0, b: 0, r: 0, w: 0, wd: 0, nb: 0};
+            state.b1 = {name: formatName(prompt("Innings 2 - Opener 1 Name:") || "Batter 1"), r: 0, b: 0, f: 0, s: 0, out: false};
+            state.b2 = {name: formatName(prompt("Innings 2 - Opener 2 Name:") || "Batter 2"), r: 0, b: 0, f: 0, s: 0, out: false};
+            
+            let openingBowler = formatName(prompt("Innings 2 - Opening Bowler:") || "Bowler 1");
+            state.currBwl = openingBowler;
+            state.bowlers[openingBowler] = {o: 0, b: 0, r: 0, w: 0, wd: 0, nb: 0};
+            
             state.striker = "b1";
             render();
         }
@@ -353,7 +384,6 @@
             state.runs += total; 
             state.bowlers[state.currBwl].r += total;
             
-            // Re-added specific extra tracking logic
             if (type === 'wd') state.bowlers[state.currBwl].wd += total; 
             if (type === 'nb') state.bowlers[state.currBwl].nb += 1; 
 
@@ -380,7 +410,7 @@
             
             if (state.wickets < 10) {
                 let nextName = prompt("WICKET! Who is the new batsman?");
-                state[state.striker] = {name: nextName || "Batter " + (state.wickets + 2), r: 0, b: 0, f: 0, s: 0, out: false};
+                state[state.striker] = {name: formatName(nextName || "Batter " + (state.wickets + 2)), r: 0, b: 0, f: 0, s: 0, out: false};
             }
             if (state.balls % 6 === 0) swap(false);
             render(); checkOverAndInnings();
@@ -404,7 +434,7 @@
 
         function resetMatch() {
             if(confirm("Are you sure you want to erase this match completely and start a new one?")) {
-                localStorage.removeItem('cricket_v14');
+                localStorage.removeItem('cricket_v15');
                 location.reload();
             }
         }
