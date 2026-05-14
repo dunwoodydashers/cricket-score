@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cricket Scorer: Pro Engine</title>
+    <title>Cricket Scorer: Ultimate Engine</title>
     <style>
         body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 10px; margin: 0; }
         .card { background: #1e1e1e; padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; }
@@ -17,6 +17,12 @@
         .bb-wicket { background: #ef4444; }
         .bb-extra { background: #3b82f6; }
         
+        /* New Styles for Over History */
+        .history-row { background: #252525; padding: 10px; border-radius: 8px; margin-bottom: 6px; font-size: 0.9rem; color: #ccc; display: flex; justify-content: space-between; align-items: center; border-left: 3px solid #fbbf24;}
+        .history-bowler { font-weight: bold; color: white; }
+        .history-balls { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end;}
+        .hb-badge { padding: 3px 6px; border-radius: 4px; font-size: 0.8rem; background: #444; color: white; font-weight: bold;}
+
         .batter-row, .bowler-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-radius: 8px; margin: 5px 0; background: #252525; }
         .on-strike { border-left: 5px solid #4ade80; background: #2a3c2e; font-weight: bold; }
         .bowler-row { border-left: 5px solid #fbbf24; background: #3a2e15; }
@@ -76,6 +82,11 @@
             </div>
         </div>
 
+        <div class="card" id="history-log-card" style="display:none;">
+            <h4 style="color: #aaa; font-size: 0.9rem; margin-bottom: 8px;">Previous Overs</h4>
+            <div id="history-log-list"></div>
+        </div>
+
         <div class="card">
             <div id="row-b1" class="batter-row">
                 <span id="name-b1"></span> <span id="stat-b1">0(0)</span>
@@ -125,9 +136,9 @@
     </div>
 
     <script>
-        let state = JSON.parse(localStorage.getItem('cricket_v9')) || {
+        let state = JSON.parse(localStorage.getItem('cricket_v10')) || {
             active: false, innings: 1, target: null, maxOvers: 20, runs: 0, wickets: 0, balls: 0,
-            striker: "b1", thisOver: [],
+            striker: "b1", thisOver: [], oversHistory: [],
             b1: {name: "", r: 0, b: 0, f: 0, s: 0, out: false},
             b2: {name: "", r: 0, b: 0, f: 0, s: 0, out: false},
             others: [], currBwl: "", bowlers: {}, history: [],
@@ -146,15 +157,38 @@
 
         function getOvers(b) { return `${Math.floor(b/6)}.${b%6}`; }
 
+        function getBallHtml(b) {
+            let cls = 'ball-badge';
+            if(b == '4' || b == '6') cls += ' bb-bound';
+            else if(b == 'W') cls += ' bb-wicket';
+            else if(typeof b === 'string' && (b.includes('WD') || b.includes('NB'))) cls += ' bb-extra';
+            return `<span class="${cls}">${b}</span>`;
+        }
+
         function renderThisOver() {
-            let html = state.thisOver.map(b => {
-                let cls = 'ball-badge';
-                if(b == '4' || b == '6') cls += ' bb-bound';
-                else if(b == 'W') cls += ' bb-wicket';
-                else if(typeof b === 'string' && (b.includes('WD') || b.includes('NB'))) cls += ' bb-extra';
-                return `<span class="${cls}">${b}</span>`;
-            }).join('');
+            let html = state.thisOver.map(getBallHtml).join('');
             document.getElementById('this-over-tracker').innerHTML = html || '-';
+        }
+
+        function renderHistoryLog() {
+            let card = document.getElementById('history-log-card');
+            let list = document.getElementById('history-log-list');
+            
+            if(state.oversHistory.length === 0) {
+                card.style.display = 'none';
+                return;
+            }
+            
+            card.style.display = 'block';
+            let html = state.oversHistory.map((ov, idx) => {
+                let ballsHtml = ov.balls.map(b => `<span class="hb-badge" style="${b=='W'?'background:#ef4444;':b=='4'||b=='6'?'background:#fbbf24;color:black;':b.toString().includes('WD')||b.toString().includes('NB')?'background:#3b82f6;':''}">${b}</span>`).join('');
+                return `<div class="history-row">
+                    <span><span style="color:#aaa; font-size:0.8rem;">Ov ${idx + 1}</span> <span class="history-bowler">${ov.bowler}</span></span>
+                    <span class="history-balls">${ballsHtml}</span>
+                </div>`;
+            }).reverse().join(''); // Reverse so newest is on top
+            
+            list.innerHTML = html;
         }
 
         function render() {
@@ -183,9 +217,17 @@
                     html += `<tr><td>${bName}</td><td>${getOvers(s.b)}</td><td>0</td><td>${s.r}</td><td><strong>${s.w}</strong></td></tr>`;
                 }
                 html += `</tbody></table>`;
+
+                if(d.oversHistory && d.oversHistory.length > 0) {
+                    html += `<h4 style="color:#aaa; margin-top:15px; margin-bottom:5px; font-size:0.9rem;">1st Innings Over Log</h4>`;
+                    d.oversHistory.forEach((ov, idx) => {
+                        let bHtml = ov.balls.map(b => `<span class="hb-badge" style="margin-right:2px; ${b=='W'?'background:#ef4444;':b=='4'||b=='6'?'background:#fbbf24;color:black;':b.toString().includes('WD')||b.toString().includes('NB')?'background:#3b82f6;':''}">${b}</span>`).join('');
+                        html += `<div class="history-row" style="margin-bottom:4px;"><span>Ov ${idx+1} (${ov.bowler})</span><span>${bHtml}</span></div>`;
+                    });
+                }
+
                 document.getElementById('prev-innings-content').innerHTML = html;
 
-                // Target Display
                 let tb = document.getElementById('target-disp');
                 tb.style.display = "block";
                 tb.innerText = `Target: ${state.target} (Need ${state.target - state.runs} runs from ${(state.maxOvers*6)-state.balls} balls)`;
@@ -197,6 +239,7 @@
             document.getElementById('main-overs').innerText = `Overs: ${getOvers(state.balls)} / ${state.maxOvers}`;
             
             renderThisOver();
+            renderHistoryLog();
 
             document.getElementById('name-b1').innerText = state.b1.name + (state.striker === 'b1' ? '*' : '');
             document.getElementById('name-b2').innerText = state.b2.name + (state.striker === 'b2' ? '*' : '');
@@ -225,7 +268,7 @@
                 let econ = s.b === 0 ? "0.00" : (s.r / (s.b / 6)).toFixed(2);
                 bwlTable.innerHTML += `<tr><td>${bName}${isCurr}</td><td>${getOvers(s.b)}</td><td>0</td><td>${s.r}</td><td><strong>${s.w}</strong></td><td>${econ}</td></tr>`;
             }
-            localStorage.setItem('cricket_v9', JSON.stringify(state));
+            localStorage.setItem('cricket_v10', JSON.stringify(state));
         }
 
         function checkOverAndInnings() {
@@ -238,6 +281,12 @@
                 return;
             }
             if (state.balls > 0 && state.balls % 6 === 0) {
+                // Save Over to History before clearing
+                state.oversHistory.push({
+                    bowler: state.currBwl,
+                    balls: [...state.thisOver]
+                });
+                
                 state.thisOver = []; 
                 let nextBwl = prompt("End of Over! Enter next bowler's name:");
                 while(!nextBwl || nextBwl.trim() === "") nextBwl = prompt("Required: Enter bowler's name:");
@@ -250,10 +299,16 @@
             let activeB1 = {...state.b1, name: state.b1.name + "*", out: false};
             let activeB2 = {...state.b2, name: state.b2.name + "*", out: false};
             
+            // If the innings ends mid-over, push the partial over to history
+            if (state.thisOver.length > 0) {
+                state.oversHistory.push({ bowler: state.currBwl, balls: [...state.thisOver] });
+            }
+
             state.innings1Data = {
                 runs: state.runs, wickets: state.wickets, balls: state.balls,
                 batters: [...state.others, activeB1, activeB2].filter(b => b.b > 0 || b.r > 0),
-                bowlers: JSON.parse(JSON.stringify(state.bowlers))
+                bowlers: JSON.parse(JSON.stringify(state.bowlers)),
+                oversHistory: JSON.parse(JSON.stringify(state.oversHistory)) // Save history for review
             };
 
             state.target = state.runs + 1;
@@ -261,7 +316,7 @@
             
             state.innings = 2;
             state.runs = 0; state.wickets = 0; state.balls = 0;
-            state.thisOver = []; state.others = []; state.bowlers = {};
+            state.thisOver = []; state.oversHistory = []; state.others = []; state.bowlers = {};
             
             state.b1 = {name: prompt("Innings 2 - Opener 1 Name:") || "Batter 1", r: 0, b: 0, f: 0, s: 0, out: false};
             state.b2 = {name: prompt("Innings 2 - Opener 2 Name:") || "Batter 2", r: 0, b: 0, f: 0, s: 0, out: false};
@@ -329,7 +384,7 @@
 
         function resetMatch() {
             if(confirm("Are you sure you want to erase this match completely and start a new one?")) {
-                localStorage.removeItem('cricket_v9');
+                localStorage.removeItem('cricket_v10');
                 location.reload();
             }
         }
