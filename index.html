@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cricket Scorer: Unlimited Undo</title>
+    <title>Cricket Scorer: Pro Bowler Tracking</title>
     <style>
         body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 10px; margin: 0; }
         .card { background: #1e1e1e; padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; }
@@ -12,7 +12,7 @@
         .target-box { background: #3a2e15; color: #fbbf24; text-align: center; padding: 5px; border-radius: 5px; font-weight: bold; margin-bottom: 10px; display: none; }
         
         .this-over-container { text-align: center; padding: 10px; background: #252525; border-radius: 8px; margin-bottom: 10px; font-size: 1rem; color: #aaa; }
-        .ball-badge { display: inline-block; min-width: 20px; padding: 4px 8px; border-radius: 4px; margin: 2px; font-weight: bold; color: white; background: #444; }
+        .ball-badge { display: inline-block; min-width: 20px; padding: 4px 8px; border-radius: 4px; margin: 2px; font-weight: bold; color: white; background: #444; text-align: center;}
         .bb-bound { background: #fbbf24; color: black; }
         .bb-wicket { background: #ef4444; }
         .bb-extra { background: #3b82f6; }
@@ -24,7 +24,7 @@
 
         .batter-row, .bowler-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-radius: 8px; margin: 5px 0; background: #252525; }
         .on-strike { border-left: 5px solid #4ade80; background: #2a3c2e; font-weight: bold; }
-        .bowler-row { border-left: 5px solid #fbbf24; background: #3a2e15; }
+        .bowler-row { border-left: 5px solid #fbbf24; background: #3a2e15; flex-wrap: wrap; }
         
         .btn-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
         button { padding: 18px 5px; font-size: 1.1rem; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; color: white; }
@@ -94,7 +94,10 @@
                 <span id="name-b2"></span> <span id="stat-b2">0(0)</span>
             </div>
             <div class="bowler-row">
-                <span id="name-bwl"></span> <span id="stat-bwl"></span>
+                <div style="width: 100%; display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span id="name-bwl"></span> <span id="stat-bwl"></span>
+                </div>
+                <div id="bwl-this-over" class="history-balls" style="width: 100%;"></div>
             </div>
         </div>
 
@@ -122,7 +125,7 @@
         <div class="card">
             <h4 style="color: #fbbf24;">Bowling Scorecard</h4>
             <table>
-                <thead><tr><th>Bowler</th><th>O</th><th>M</th><th>R</th><th>W</th><th>Econ</th></tr></thead>
+                <thead><tr><th>Bowler</th><th>O</th><th>M</th><th>R</th><th>W</th><th>Econ</th><th>Ex</th></tr></thead>
                 <tbody id="bwl-scorecard"></tbody>
             </table>
         </div>
@@ -135,7 +138,7 @@
     </div>
 
     <script>
-        let state = JSON.parse(localStorage.getItem('cricket_v13')) || {
+        let state = JSON.parse(localStorage.getItem('cricket_v14')) || {
             active: false, innings: 1, target: null, maxOvers: 20, runs: 0, wickets: 0, balls: 0,
             striker: "b1", thisOver: [], oversHistory: [],
             b1: {name: "", r: 0, b: 0, f: 0, s: 0, out: false},
@@ -158,29 +161,33 @@
 
         function getBallHtml(b) {
             let cls = 'ball-badge';
+            let displayB = (b === 0 || b === '0') ? '•' : b; // Convert 0s to dots
             if(b == '4' || b == '6') cls += ' bb-bound';
             else if(b == 'W') cls += ' bb-wicket';
             else if(typeof b === 'string' && (b.includes('WD') || b.includes('NB'))) cls += ' bb-extra';
-            return `<span class="${cls}">${b}</span>`;
+            return `<span class="${cls}">${displayB}</span>`;
         }
 
         function renderThisOver() {
             let html = state.thisOver.map(getBallHtml).join('');
             document.getElementById('this-over-tracker').innerHTML = html || '-';
+            document.getElementById('bwl-this-over').innerHTML = html; // Also render inside bowler card
         }
 
         function renderHistoryLog() {
             let card = document.getElementById('history-log-card');
             let list = document.getElementById('history-log-list');
-            
-            if(state.oversHistory.length === 0) {
-                card.style.display = 'none';
-                return;
-            }
-            
+            if(state.oversHistory.length === 0) { card.style.display = 'none'; return; }
             card.style.display = 'block';
             let html = state.oversHistory.map((ov, idx) => {
-                let ballsHtml = ov.balls.map(b => `<span class="hb-badge" style="${b=='W'?'background:#ef4444;':b=='4'||b=='6'?'background:#fbbf24;color:black;':b.toString().includes('WD')||b.toString().includes('NB')?'background:#3b82f6;':''}">${b}</span>`).join('');
+                let ballsHtml = ov.balls.map(b => {
+                    let disp = (b === 0 || b === '0') ? '•' : b;
+                    let style = '';
+                    if(b=='W') style='background:#ef4444;';
+                    else if(b=='4'||b=='6') style='background:#fbbf24;color:black;';
+                    else if(b.toString().includes('WD')||b.toString().includes('NB')) style='background:#3b82f6;';
+                    return `<span class="hb-badge" style="${style}">${disp}</span>`;
+                }).join('');
                 return `<div class="history-row">
                     <span><span style="color:#aaa; font-size:0.8rem;">Ov ${idx + 1}</span> <span class="history-bowler">${ov.bowler}</span></span>
                     <span class="history-balls">${ballsHtml}</span>
@@ -194,7 +201,7 @@
             document.getElementById('setup-screen').style.display = "none";
             document.getElementById('score-screen').style.display = "block";
             
-            // Undo Button UI Update - Shows exact number of available undos
+            // Undo Logic
             let uBtn = document.getElementById('undo-btn');
             if(state.history.length > 0) {
                 uBtn.innerText = `Undo (${state.history.length})`;
@@ -204,7 +211,7 @@
                 uBtn.style.opacity = "0.5";
             }
 
-            // 1st Innings Snapshot Logic
+            // Snapshot Logic
             let prevCard = document.getElementById('prev-innings-card');
             if (state.innings === 2 && state.innings1Data) {
                 prevCard.style.display = "block";
@@ -217,10 +224,12 @@
                 });
                 html += `</tbody></table>`;
                 html += `<h4 style="color:#fbbf24; margin-top:15px; margin-bottom:5px;">Bowling</h4>`;
-                html += `<table><thead><tr><th>Bowler</th><th>O</th><th>M</th><th>R</th><th>W</th></tr></thead><tbody>`;
+                html += `<table><thead><tr><th>Bowler</th><th>O</th><th>M</th><th>R</th><th>W</th><th>Econ</th><th>Ex</th></tr></thead><tbody>`;
                 for(let bName in d.bowlers) {
                     let s = d.bowlers[bName];
-                    html += `<tr><td>${bName}</td><td>${getOvers(s.b)}</td><td>0</td><td>${s.r}</td><td><strong>${s.w}</strong></td></tr>`;
+                    let econ = s.b === 0 ? "0.00" : (s.r / (s.b / 6)).toFixed(2);
+                    let extras = (s.wd > 0 || s.nb > 0) ? `${s.wd}w ${s.nb}n` : `-`;
+                    html += `<tr><td>${bName}</td><td>${getOvers(s.b)}</td><td>0</td><td>${s.r}</td><td><strong>${s.w}</strong></td><td>${econ}</td><td>${extras}</td></tr>`;
                 }
                 html += `</tbody></table>`;
                 document.getElementById('prev-innings-content').innerHTML = html;
@@ -262,9 +271,10 @@
                 let s = state.bowlers[bName];
                 let isCurr = (bName === state.currBwl) ? "*" : "";
                 let econ = s.b === 0 ? "0.00" : (s.r / (s.b / 6)).toFixed(2);
-                bwlTable.innerHTML += `<tr><td>${bName}${isCurr}</td><td>${getOvers(s.b)}</td><td>0</td><td>${s.r}</td><td><strong>${s.w}</strong></td><td>${econ}</td></tr>`;
+                let extras = (s.wd > 0 || s.nb > 0) ? `${s.wd}w ${s.nb}n` : `-`;
+                bwlTable.innerHTML += `<tr><td>${bName}${isCurr}</td><td>${getOvers(s.b)}</td><td>0</td><td>${s.r}</td><td><strong>${s.w}</strong></td><td>${econ}</td><td>${extras}</td></tr>`;
             }
-            localStorage.setItem('cricket_v13', JSON.stringify(state));
+            localStorage.setItem('cricket_v14', JSON.stringify(state));
         }
 
         function checkOverAndInnings() {
@@ -305,7 +315,7 @@
             state.innings = 2;
             state.runs = 0; state.wickets = 0; state.balls = 0;
             state.thisOver = []; state.oversHistory = []; state.others = []; state.bowlers = {};
-            state.history = []; // History clears when changing innings to save memory
+            state.history = []; 
             
             state.b1 = {name: prompt("Innings 2 - Opener 1 Name:") || "Batter 1", r: 0, b: 0, f: 0, s: 0, out: false};
             state.b2 = {name: prompt("Innings 2 - Opener 2 Name:") || "Batter 2", r: 0, b: 0, f: 0, s: 0, out: false};
@@ -338,10 +348,18 @@
             let addR = parseInt(prompt(`Extra runs scored on this ${type.toUpperCase()}? (Enter 0 if none)`, "0"));
             if (isNaN(addR)) return;
             pushHistory(); 
+            
             let total = 1 + addR;
-            state.runs += total; state.bowlers[state.currBwl].r += total;
+            state.runs += total; 
+            state.bowlers[state.currBwl].r += total;
+            
+            // Re-added specific extra tracking logic
+            if (type === 'wd') state.bowlers[state.currBwl].wd += total; 
+            if (type === 'nb') state.bowlers[state.currBwl].nb += 1; 
+
             let label = type.toUpperCase() + (addR > 0 ? '+'+addR : '');
             state.thisOver.push(label);
+            
             if (type === 'nb') {
                 state[state.striker].r += addR; state[state.striker].b += 1;
                 if (addR === 4) state[state.striker].f += 1;
@@ -370,26 +388,23 @@
 
         function pushHistory() { 
             let snap = JSON.parse(JSON.stringify(state)); 
-            snap.history = []; // Strip out history so we don't duplicate memory infinitely
+            snap.history = []; 
             state.history.push(JSON.stringify(snap));
-            // No limit! It will keep pushing as long as the innings goes on.
         }
 
         function undo() { 
             if(state.history.length > 0) { 
-                let prevStr = state.history.pop(); // Grab the last state
-                let preservedHistory = state.history; // Save the remaining stack
-                
-                state = JSON.parse(prevStr); // Overwrite current state
-                state.history = preservedHistory; // Plug the stack back in
-                
+                let prevStr = state.history.pop(); 
+                let preservedHistory = state.history; 
+                state = JSON.parse(prevStr); 
+                state.history = preservedHistory; 
                 render(); 
             } 
         }
 
         function resetMatch() {
             if(confirm("Are you sure you want to erase this match completely and start a new one?")) {
-                localStorage.removeItem('cricket_v13');
+                localStorage.removeItem('cricket_v14');
                 location.reload();
             }
         }
