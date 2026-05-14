@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cricket Scorer: Match Exporter</title>
+    <title>Cricket Scorer: Match Summary</title>
     <style>
         body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 10px; margin: 0; }
         .card { background: #1e1e1e; padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; }
@@ -45,7 +45,7 @@
         
         .admin-btns { display: flex; gap: 10px; margin-bottom: 10px; margin-top: 15px; }
         .btn-admin { flex: 1; padding: 15px; background: #444; border-radius: 8px; border: none; color: white; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        .btn-download { width: 100%; padding: 15px; background: #2563eb; border-radius: 8px; border: none; color: white; font-weight: bold; cursor: pointer; margin-bottom: 40px; }
+        .btn-download { width: 100%; padding: 15px; background: #2563eb; border-radius: 8px; border: none; color: white; font-weight: bold; cursor: pointer; margin-bottom: 40px; font-size: 1.1rem;}
 
         details summary { cursor: pointer; padding: 10px; background: #333; border-radius: 5px; font-weight: bold; outline: none; }
         details[open] summary { margin-bottom: 10px; }
@@ -82,7 +82,7 @@
         </div>
 
         <div class="card" id="history-log-card" style="display:none;">
-            <h4 style="color: #aaa; font-size: 0.9rem; margin-bottom: 8px;">Previous Overs (This Innings)</h4>
+            <h4 style="color: #aaa; font-size: 0.9rem; margin-bottom: 8px;">Previous Overs</h4>
             <div id="history-log-list"></div>
         </div>
 
@@ -136,7 +136,7 @@
             <button class="btn-admin" style="background:#ef4444;" onclick="resetMatch()">New Match</button>
         </div>
         
-        <button class="btn-download" onclick="downloadScorecard()">📥 Download Full Scorecard (.txt)</button>
+        <button class="btn-download" onclick="downloadScorecardTXT()">📥 Download Match Receipt (.txt)</button>
     </div>
 
     <script>
@@ -145,7 +145,7 @@
             return str.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
         }
 
-        let state = JSON.parse(localStorage.getItem('cricket_v16')) || {
+        let state = JSON.parse(localStorage.getItem('cricket_v18')) || {
             active: false, innings: 1, target: null, maxOvers: 20, runs: 0, wickets: 0, balls: 0,
             striker: "b1", thisOver: [], oversHistory: [],
             b1: {name: "", r: 0, b: 0, f: 0, s: 0, out: false},
@@ -240,21 +240,6 @@
                     html += `<tr><td>${bName}</td><td>${getOvers(s.b)}</td><td>0</td><td>${s.r}</td><td><strong>${s.w}</strong></td><td>${econ}</td><td>${extras}</td></tr>`;
                 }
                 html += `</tbody></table>`;
-
-                if(d.oversHistory && d.oversHistory.length > 0) {
-                    html += `<h4 style="color:#aaa; margin-top:15px; margin-bottom:5px; font-size:0.9rem;">1st Innings Over Log</h4>`;
-                    d.oversHistory.forEach((ov, idx) => {
-                        let bHtml = ov.balls.map(b => {
-                            let disp = (b === 0 || b === '0') ? '•' : b;
-                            let style = '';
-                            if(b=='W') style='background:#ef4444;';
-                            else if(b=='4'||b=='6') style='background:#fbbf24;color:black;';
-                            else if(b.toString().includes('WD')||b.toString().includes('NB')) style='background:#3b82f6;';
-                            return `<span class="hb-badge" style="margin-right:2px; ${style}">${disp}</span>`;
-                        }).join('');
-                        html += `<div class="history-row" style="margin-bottom:4px;"><span><span style="color:#aaa; font-size:0.8rem;">Ov ${idx+1}</span> <span class="history-bowler">${ov.bowler}</span></span><span class="history-balls">${bHtml}</span></div>`;
-                    });
-                }
                 document.getElementById('prev-innings-content').innerHTML = html;
 
                 let tb = document.getElementById('target-disp');
@@ -297,7 +282,7 @@
                 let extras = (s.wd > 0 || s.nb > 0) ? `${s.wd}w ${s.nb}n` : `-`;
                 bwlTable.innerHTML += `<tr><td>${bName}${isCurr}</td><td>${getOvers(s.b)}</td><td>0</td><td>${s.r}</td><td><strong>${s.w}</strong></td><td>${econ}</td><td>${extras}</td></tr>`;
             }
-            localStorage.setItem('cricket_v16', JSON.stringify(state));
+            localStorage.setItem('cricket_v18', JSON.stringify(state));
         }
 
         function checkOverAndInnings() {
@@ -322,7 +307,6 @@
         function processInningsBreak() {
             let activeB1 = {...state.b1, name: state.b1.name + "*", out: false};
             let activeB2 = {...state.b2, name: state.b2.name + "*", out: false};
-            
             if (state.thisOver.length > 0) state.oversHistory.push({ bowler: state.currBwl, balls: [...state.thisOver] });
 
             state.innings1Data = {
@@ -427,67 +411,73 @@
 
         function resetMatch() {
             if(confirm("Are you sure you want to erase this match completely and start a new one?")) {
-                localStorage.removeItem('cricket_v16');
+                localStorage.removeItem('cricket_v18');
                 location.reload();
             }
         }
 
-        // NEW: Download Scorecard Function
-        function downloadScorecard() {
-            let txt = "=============================\n";
-            txt += "      MATCH SCORECARD        \n";
-            txt += "=============================\n\n";
+        // Space padding helper for clean alignment
+        function padStr(str, length) { return (str + " ".repeat(length)).substring(0, length); }
 
-            // If there's a first innings recorded
+        function downloadScorecardTXT() {
+            let txt = "=========================================\n";
+            txt += "         OFFICIAL MATCH SCORECARD        \n";
+            txt += "=========================================\n\n";
+
             let d = state.innings1Data;
             if (d) {
-                txt += "=== FIRST INNINGS ===\n";
-                txt += `Total: ${d.runs} / ${d.wickets} in ${getOvers(d.balls)} Overs\n\n`;
+                txt += "--- FIRST INNINGS ---\n";
+                txt += `Score:  ${d.runs} / ${d.wickets}\n`;
+                txt += `Overs:  ${getOvers(d.balls)}\n\n`;
+                
                 txt += "BATTING:\n";
                 d.batters.forEach(b => {
-                    let st = b.out ? "" : "*";
-                    txt += `- ${b.name}${st}: ${b.r} runs off ${b.b} balls (4s:${b.f}, 6s:${b.s})\n`;
+                    let st = b.out ? " " : "*";
+                    txt += padStr(b.name + st, 15) + padStr(`${b.r} (${b.b})`, 10) + `[4s: ${b.f}, 6s: ${b.s}]\n`;
                 });
+                
                 txt += "\nBOWLING:\n";
                 for (let bName in d.bowlers) {
                     let s = d.bowlers[bName];
                     let econ = s.b === 0 ? "0.00" : (s.r / (s.b / 6)).toFixed(2);
-                    txt += `- ${bName}: ${getOvers(s.b)} Overs, ${s.r} Runs, ${s.w} Wickets (Econ: ${econ}, Wides: ${s.wd}, NBs: ${s.nb})\n`;
+                    let figs = `${getOvers(s.b)} - 0 - ${s.r} - ${s.w}`;
+                    txt += padStr(bName, 15) + padStr(figs, 18) + `(Econ: ${econ}, Wd: ${s.wd}, NB: ${s.nb})\n`;
                 }
-                txt += "\n-----------------------------\n\n";
+                txt += "\n-----------------------------------------\n\n";
             }
 
-            // Current / Second Innings
-            txt += d ? "=== SECOND INNINGS ===\n" : "=== CURRENT INNINGS ===\n";
-            txt += `Total: ${state.runs} / ${state.wickets} in ${getOvers(state.balls)} Overs\n`;
-            if (d) txt += `Target was: ${state.target}\n`;
-            txt += "\nBATTING:\n";
+            txt += d ? "--- SECOND INNINGS ---\n" : "--- CURRENT INNINGS ---\n";
+            txt += `Score:  ${state.runs} / ${state.wickets}\n`;
+            txt += `Overs:  ${getOvers(state.balls)}\n`;
+            if (d) txt += `Target: ${state.target}\n`;
             
+            txt += "\nBATTING:\n";
             let allCurrentBatters = [...state.others];
             if (state.b1.b > 0 || state.b1.r > 0 || !state.b1.out) allCurrentBatters.push({...state.b1, out: false});
             if (state.b2.b > 0 || state.b2.r > 0 || !state.b2.out) allCurrentBatters.push({...state.b2, out: false});
             
             allCurrentBatters.forEach(b => {
                 if (!b.name) return;
-                let st = b.out ? "" : "*";
-                txt += `- ${b.name}${st}: ${b.r} runs off ${b.b} balls (4s:${b.f}, 6s:${b.s})\n`;
+                let st = b.out ? " " : "*";
+                txt += padStr(b.name + st, 15) + padStr(`${b.r} (${b.b})`, 10) + `[4s: ${b.f}, 6s: ${b.s}]\n`;
             });
             
             txt += "\nBOWLING:\n";
             for (let bName in state.bowlers) {
                 let s = state.bowlers[bName];
                 let econ = s.b === 0 ? "0.00" : (s.r / (s.b / 6)).toFixed(2);
-                txt += `- ${bName}: ${getOvers(s.b)} Overs, ${s.r} Runs, ${s.w} Wickets (Econ: ${econ}, Wides: ${s.wd}, NBs: ${s.nb})\n`;
+                let figs = `${getOvers(s.b)} - 0 - ${s.r} - ${s.w}`;
+                txt += padStr(bName, 15) + padStr(figs, 18) + `(Econ: ${econ}, Wd: ${s.wd}, NB: ${s.nb})\n`;
             }
-            txt += "\n=============================\n";
-            txt += "Generated by Advanced Cricket Scorer";
 
-            // Create and trigger the download
+            txt += "\n=========================================\n";
+            txt += "Generated by Dunwoody Dashers Live Scorer\n";
+
             let blob = new Blob([txt], { type: 'text/plain' });
             let link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
             let dateStr = new Date().toISOString().split('T')[0];
-            link.download = `Cricket_Scorecard_${dateStr}.txt`;
+            link.download = `Match_Receipt_${dateStr}.txt`;
             
             document.body.appendChild(link);
             link.click();
