@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cricket Scorer: Advanced Stats</title>
+    <title>Cricket Scorer: Advanced Extras</title>
     <style>
         body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 10px; margin: 0; }
         .card { background: #1e1e1e; padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; }
@@ -97,7 +97,7 @@
     </div>
 
     <script>
-        let state = JSON.parse(localStorage.getItem('cricket_v5')) || {
+        let state = JSON.parse(localStorage.getItem('cricket_v6')) || {
             active: false, runs: 0, wickets: 0, balls: 0, toss: "", striker: "b1",
             b1: {name: "", r: 0, b: 0, f: 0, s: 0, out: false},
             b2: {name: "", r: 0, b: 0, f: 0, s: 0, out: false},
@@ -164,12 +164,12 @@
             for (let bName in state.bowlers) {
                 let s = state.bowlers[bName];
                 let isCurr = (bName === state.currBwl) ? "*" : "";
-                let maidens = (s.b >= 6 && s.r === 0) ? Math.floor(s.b/6) : 0; // Simple maiden calc
+                let maidens = (s.b >= 6 && s.r === 0) ? Math.floor(s.b/6) : 0; 
                 let extras = (s.wd > 0 || s.nb > 0) ? `${s.wd}w ${s.nb}n` : `-`;
                 bwlTable.innerHTML += `<tr><td>${bName}${isCurr}</td><td>${getOvers(s.b)}</td><td>${maidens}</td><td>${s.r}</td><td><strong>${s.w}</strong></td><td>${getEcon(s.r, s.b)}</td><td>${extras}</td></tr>`;
             }
             
-            localStorage.setItem('cricket_v5', JSON.stringify(state));
+            localStorage.setItem('cricket_v6', JSON.stringify(state));
         }
 
         function checkOver() {
@@ -191,13 +191,11 @@
             state.runs += r;
             state.balls += 1;
             
-            // Batter stats
             state[state.striker].r += r;
             state[state.striker].b += 1;
             if (r === 4) state[state.striker].f += 1;
             if (r === 6) state[state.striker].s += 1;
 
-            // Bowler stats
             state.bowlers[state.currBwl].r += r;
             state.bowlers[state.currBwl].b += 1;
 
@@ -208,11 +206,32 @@
         }
 
         function extra(type) { 
+            let additionalStr = prompt(`Extra runs scored on this ${type.toUpperCase()}? (Enter 0 if none)`, "0");
+            if (additionalStr === null) return; // User cancelled the prompt
+            
+            let additionalRuns = parseInt(additionalStr) || 0;
+            
             pushHistory(); 
-            state.runs += 1; 
-            state.bowlers[state.currBwl].r += 1;
-            if (type === 'wd') state.bowlers[state.currBwl].wd += 1;
-            if (type === 'nb') state.bowlers[state.currBwl].nb += 1;
+            
+            let totalExtra = 1 + additionalRuns;
+            state.runs += totalExtra; 
+            state.bowlers[state.currBwl].r += totalExtra;
+            
+            if (type === 'wd') {
+                state.bowlers[state.currBwl].wd += totalExtra; // Total wide runs
+            } else if (type === 'nb') {
+                state.bowlers[state.currBwl].nb += 1; // Count of No Balls bowled
+                
+                // Batsman gets the runs and faces a ball on a No Ball
+                state[state.striker].r += additionalRuns;
+                state[state.striker].b += 1;
+                if (additionalRuns === 4) state[state.striker].f += 1;
+                if (additionalRuns === 6) state[state.striker].s += 1;
+            }
+
+            // Rotate strike if they ran an odd number of runs
+            if (additionalRuns % 2 !== 0) swap(false);
+            
             render(); 
         }
         
