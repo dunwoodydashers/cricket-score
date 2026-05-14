@@ -3,15 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cricket Scorer: Live Summary</title>
+    <title>Cricket Scorer: Advanced Stats</title>
     <style>
         body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 10px; margin: 0; }
         .card { background: #1e1e1e; padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; }
-        .score-big { font-size: 3rem; font-weight: bold; color: #4ade80; text-align: center; margin: 5px 0; }
+        .score-big { font-size: 3.2rem; font-weight: bold; color: #4ade80; text-align: center; margin: 5px 0; }
         .ov { color: #aaa; font-size: 1.2rem; text-align: center; margin-bottom: 10px;}
         
-        .batter-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-radius: 8px; margin: 5px 0; background: #252525; }
+        .batter-row, .bowler-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-radius: 8px; margin: 5px 0; background: #252525; }
         .on-strike { border-left: 5px solid #4ade80; background: #2a3c2e; font-weight: bold; }
+        .bowler-row { border-left: 5px solid #fbbf24; background: #3a2e15; }
         
         .btn-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
         button { padding: 18px 5px; font-size: 1.1rem; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; color: white; }
@@ -21,24 +22,27 @@
         .out { background: #ef4444; grid-column: span 2; }
         .swap { background: #8b5cf6; grid-column: span 2; }
         
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th { text-align: left; color: #777; font-size: 0.8rem; border-bottom: 1px solid #333; padding: 5px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; text-align: center; }
+        th { color: #777; font-size: 0.8rem; border-bottom: 1px solid #333; padding: 5px; text-align: center; }
+        th:first-child, td:first-child { text-align: left; }
         td { padding: 8px 5px; border-bottom: 1px solid #222; font-size: 0.9rem; }
         .out-player { color: #888; text-decoration: line-through; }
         
-        .setup-field { background: #252525; border: 1px solid #444; color: white; padding: 8px; border-radius: 5px; width: 100%; box-sizing: border-box; margin-bottom: 10px;}
+        .setup-field { background: #252525; border: 1px solid #444; color: white; padding: 10px; border-radius: 5px; width: 100%; box-sizing: border-box; margin-bottom: 10px;}
+        h4 { margin: 0 0 10px 0; color: #4ade80; }
     </style>
 </head>
 <body>
 
     <div id="setup-screen" class="card">
         <h3>Match Start</h3>
-        <input type="text" id="t1" class="setup-field" placeholder="Batting Team">
+        <input type="text" id="t1" class="setup-field" placeholder="Batting Team" value="Dunwoody Dashers">
         <input type="text" id="t2" class="setup-field" placeholder="Bowling Team">
-        <input type="text" id="toss" class="setup-field" placeholder="Toss Details (e.g. Team A chose to Bat)">
+        <input type="text" id="toss" class="setup-field" placeholder="Toss Details">
         <input type="text" id="b1-init" class="setup-field" placeholder="Opener 1 Name">
         <input type="text" id="b2-init" class="setup-field" placeholder="Opener 2 Name">
-        <button onclick="initMatch()" style="background:#4ade80; color:black; width:100%">START MATCH</button>
+        <input type="text" id="bwl-init" class="setup-field" placeholder="Opening Bowler Name">
+        <button onclick="initMatch()" style="background:#4ade80; color:black; width:100%; padding: 15px; font-size: 1.2rem;">START MATCH</button>
     </div>
 
     <div id="score-screen" style="display:none;">
@@ -55,7 +59,9 @@
             <div id="row-b2" class="batter-row">
                 <span id="name-b2"></span> <span id="stat-b2">0(0)</span>
             </div>
-            <input type="text" id="curr-bowler" class="setup-field" placeholder="Bowler Name" style="margin-top:10px;">
+            <div class="bowler-row">
+                <span id="name-bwl"></span> <span id="stat-bwl"></span>
+            </div>
         </div>
 
         <div class="btn-grid">
@@ -65,39 +71,61 @@
             <button class="run" onclick="ball(3)">3</button>
             <button class="bound" onclick="ball(4)">4</button>
             <button class="bound" onclick="ball(6)">6</button>
-            <button class="ext" onclick="extra('WD')">WD</button>
-            <button class="ext" onclick="extra('NB')">NB</button>
+            <button class="ext" onclick="extra('wd')">WD</button>
+            <button class="ext" onclick="extra('nb')">NB</button>
             <button class="swap" onclick="swap()">SWAP STRIKE</button>
             <button class="out" onclick="wicket()">WICKET</button>
         </div>
 
-        <div class="card">
-            <h4 style="margin:0 0 10px 0; color:#4ade80;">Full Scorecard</h4>
+        <div class="card" style="margin-top: 15px;">
+            <h4>Batting Scorecard</h4>
             <table>
-                <thead><tr><th>Batsman</th><th>R</th><th>B</th></tr></thead>
-                <tbody id="full-scorecard"></tbody>
+                <thead><tr><th>Batter</th><th>R</th><th>B</th><th>4s</th><th>6s</th></tr></thead>
+                <tbody id="bat-scorecard"></tbody>
             </table>
         </div>
 
-        <button class="run" style="width:100%; background:#444; margin-bottom:40px;" onclick="undo()">Undo</button>
+        <div class="card">
+            <h4 style="color: #fbbf24;">Bowling Scorecard</h4>
+            <table>
+                <thead><tr><th>Bowler</th><th>O</th><th>M</th><th>R</th><th>W</th><th>Econ</th><th>Ex</th></tr></thead>
+                <tbody id="bwl-scorecard"></tbody>
+            </table>
+        </div>
+
+        <button class="run" style="width:100%; background:#444; margin-bottom:40px; padding: 15px;" onclick="undo()">Undo Last Entry</button>
     </div>
 
     <script>
-        let state = JSON.parse(localStorage.getItem('cricket_v4')) || {
-            active: false, runs: 0, wickets: 0, balls: 0,
-            toss: "", striker: "b1",
-            b1: {name: "", r: 0, b: 0, out: false},
-            b2: {name: "", r: 0, b: 0, out: false},
-            others: [], // players who are finished batting
+        let state = JSON.parse(localStorage.getItem('cricket_v5')) || {
+            active: false, runs: 0, wickets: 0, balls: 0, toss: "", striker: "b1",
+            b1: {name: "", r: 0, b: 0, f: 0, s: 0, out: false},
+            b2: {name: "", r: 0, b: 0, f: 0, s: 0, out: false},
+            others: [], 
+            currBwl: "",
+            bowlers: {}, 
             history: []
         };
 
         function initMatch() {
             state.b1.name = document.getElementById('b1-init').value || "Batter 1";
             state.b2.name = document.getElementById('b2-init').value || "Batter 2";
+            let openingBowler = document.getElementById('bwl-init').value || "Bowler 1";
+            state.currBwl = openingBowler;
+            state.bowlers[openingBowler] = {o: 0, b: 0, r: 0, w: 0, wd: 0, nb: 0};
+            
             state.toss = document.getElementById('toss').value;
             state.active = true;
             render();
+        }
+
+        function getEcon(r, b) {
+            if (b === 0) return "0.00";
+            return (r / (b / 6)).toFixed(2);
+        }
+
+        function getOvers(b) {
+            return `${Math.floor(b/6)}.${b%6}`;
         }
 
         function render() {
@@ -107,58 +135,111 @@
             
             document.getElementById('toss-text').innerText = state.toss;
             document.getElementById('main-score').innerText = `${state.runs} - ${state.wickets}`;
-            document.getElementById('main-overs').innerText = `Overs: ${Math.floor(state.balls/6)}.${state.balls%6}`;
+            document.getElementById('main-overs').innerText = `Overs: ${getOvers(state.balls)}`;
             
             document.getElementById('name-b1').innerText = state.b1.name + (state.striker === 'b1' ? '*' : '');
             document.getElementById('name-b2').innerText = state.b2.name + (state.striker === 'b2' ? '*' : '');
-            document.getElementById('stat-b1').innerText = `${state.b1.r}(${state.b1.b})`;
-            document.getElementById('stat-b2').innerText = `${state.b2.r}(${state.b2.b})`;
+            document.getElementById('stat-b1').innerText = `${state.b1.r}(${state.b1.b}) [${state.b1.f}x4 ${state.b1.s}x6]`;
+            document.getElementById('stat-b2').innerText = `${state.b2.r}(${state.b2.b}) [${state.b2.f}x4 ${state.b2.s}x6]`;
 
             document.getElementById('row-b1').className = state.striker === 'b1' ? 'batter-row on-strike' : 'batter-row';
             document.getElementById('row-b2').className = state.striker === 'b2' ? 'batter-row on-strike' : 'batter-row';
 
-            const table = document.getElementById('full-scorecard');
-            table.innerHTML = "";
-            
-            // Show players who are already out
+            let cb = state.bowlers[state.currBwl];
+            document.getElementById('name-bwl').innerText = `🏏 ${state.currBwl}`;
+            document.getElementById('stat-bwl').innerText = `${getOvers(cb.b)} - ${cb.r} - ${cb.w}`;
+
+            // Batting Table
+            const batTable = document.getElementById('bat-scorecard');
+            batTable.innerHTML = "";
             state.others.forEach(p => {
-                table.innerHTML += `<tr class="out-player"><td>${p.name} (out)</td><td>${p.r}</td><td>${p.b}</td></tr>`;
+                batTable.innerHTML += `<tr class="out-player"><td>${p.name}</td><td>${p.r}</td><td>${p.b}</td><td>${p.f}</td><td>${p.s}</td></tr>`;
             });
-            // Show currently batting
-            table.innerHTML += `<tr><td>${state.b1.name}*</td><td>${state.b1.r}</td><td>${state.b1.b}</td></tr>`;
-            table.innerHTML += `<tr><td>${state.b2.name}*</td><td>${state.b2.r}</td><td>${state.b2.b}</td></tr>`;
+            batTable.innerHTML += `<tr><td>${state.b1.name}*</td><td>${state.b1.r}</td><td>${state.b1.b}</td><td>${state.b1.f}</td><td>${state.b1.s}</td></tr>`;
+            batTable.innerHTML += `<tr><td>${state.b2.name}*</td><td>${state.b2.r}</td><td>${state.b2.b}</td><td>${state.b2.f}</td><td>${state.b2.s}</td></tr>`;
             
-            localStorage.setItem('cricket_v4', JSON.stringify(state));
+            // Bowling Table
+            const bwlTable = document.getElementById('bwl-scorecard');
+            bwlTable.innerHTML = "";
+            for (let bName in state.bowlers) {
+                let s = state.bowlers[bName];
+                let isCurr = (bName === state.currBwl) ? "*" : "";
+                let maidens = (s.b >= 6 && s.r === 0) ? Math.floor(s.b/6) : 0; // Simple maiden calc
+                let extras = (s.wd > 0 || s.nb > 0) ? `${s.wd}w ${s.nb}n` : `-`;
+                bwlTable.innerHTML += `<tr><td>${bName}${isCurr}</td><td>${getOvers(s.b)}</td><td>${maidens}</td><td>${s.r}</td><td><strong>${s.w}</strong></td><td>${getEcon(s.r, s.b)}</td><td>${extras}</td></tr>`;
+            }
+            
+            localStorage.setItem('cricket_v5', JSON.stringify(state));
+        }
+
+        function checkOver() {
+            if (state.balls > 0 && state.balls % 6 === 0) {
+                let nextBwl = prompt("End of Over! Enter next bowler's name:");
+                while(!nextBwl || nextBwl.trim() === "") {
+                    nextBwl = prompt("Required: You must enter a bowler's name to continue:");
+                }
+                nextBwl = nextBwl.trim();
+                state.currBwl = nextBwl;
+                if (!state.bowlers[nextBwl]) {
+                    state.bowlers[nextBwl] = {o: 0, b: 0, r: 0, w: 0, wd: 0, nb: 0};
+                }
+            }
         }
 
         function ball(r) {
             pushHistory();
             state.runs += r;
             state.balls += 1;
+            
+            // Batter stats
             state[state.striker].r += r;
             state[state.striker].b += 1;
-            if(r % 2 !== 0 || state.balls % 6 === 0) swap(false);
+            if (r === 4) state[state.striker].f += 1;
+            if (r === 6) state[state.striker].s += 1;
+
+            // Bowler stats
+            state.bowlers[state.currBwl].r += r;
+            state.bowlers[state.currBwl].b += 1;
+
+            if (r % 2 !== 0 || state.balls % 6 === 0) swap(false);
+            
+            checkOver();
             render();
         }
 
-        function extra() { pushHistory(); state.runs += 1; render(); }
-        function swap(m=true) { if(m) pushHistory(); state.striker = state.striker === 'b1' ? 'b2' : 'b1'; render(); }
+        function extra(type) { 
+            pushHistory(); 
+            state.runs += 1; 
+            state.bowlers[state.currBwl].r += 1;
+            if (type === 'wd') state.bowlers[state.currBwl].wd += 1;
+            if (type === 'nb') state.bowlers[state.currBwl].nb += 1;
+            render(); 
+        }
+        
+        function swap(m=true) { 
+            if(m) pushHistory(); 
+            state.striker = state.striker === 'b1' ? 'b2' : 'b1'; 
+            render(); 
+        }
 
         function wicket() {
             if(state.wickets >= 10) return;
             pushHistory();
             state.wickets += 1;
             state.balls += 1;
-            state[state.striker].b += 1;
             
-            // Move current striker to "others" (finished) list
+            state[state.striker].b += 1;
+            state.bowlers[state.currBwl].b += 1;
+            state.bowlers[state.currBwl].w += 1;
+            
             state.others.push({...state[state.striker], out: true});
             
-            // Prompt for new name immediately
-            let nextName = prompt("Who is the new batsman?");
-            state[state.striker] = {name: nextName || "Batsman " + (state.wickets + 2), r: 0, b: 0, out: false};
+            let nextName = prompt("WICKET! Who is the new batsman?");
+            state[state.striker] = {name: nextName || "Batter " + (state.wickets + 2), r: 0, b: 0, f: 0, s: 0, out: false};
             
-            if(state.balls % 6 === 0) swap(false);
+            if (state.balls % 6 === 0) swap(false);
+            
+            checkOver();
             render();
         }
 
