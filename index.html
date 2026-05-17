@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cricket Scorer: Fresh Start Engine</title>
+    <title>Cricket Scorer: Complete Engine</title>
     <style>
         body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 10px; margin: 0; }
         .card { background: #1e1e1e; padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; }
@@ -156,8 +156,7 @@
             return str.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
         }
 
-        // Using a fresh state key name to isolate local data structures completely
-        const STORAGE_KEY = 'cricket_v28_stable';
+        const STORAGE_KEY = 'cricket_v29_stable';
 
         let state = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {
             active: false, innings: 1, target: null, maxOvers: 20, runs: 0, wickets: 0, balls: 0,
@@ -169,7 +168,6 @@
         };
 
         function initMatch() {
-            // FIX: Purge all local storage instances on a fresh game bootup line execution to unfreeze buttons
             localStorage.clear();
 
             state = {
@@ -261,6 +259,23 @@
                     html += `<tr><td>${bName}</td><td>${getOvers(s.b)}</td><td>0</td><td>${s.r}</td><td><strong>${s.w}</strong></td><td>${econ}</td><td>${s.wd}</td><td>${s.nb}</td></tr>`;
                 }
                 html += `</tbody></table>`;
+                
+                // RESTORED: The visual 1st Innings Over Log!
+                if(d.oversHistory && d.oversHistory.length > 0) {
+                    html += `<h4 style="color:#aaa; margin-top:15px; margin-bottom:5px; font-size:0.9rem;">1st Innings Over Log</h4>`;
+                    d.oversHistory.forEach((ov, idx) => {
+                        let bHtml = ov.balls.map(b => {
+                            let disp = (b === 0 || b === '0') ? '•' : b;
+                            let style = '';
+                            if(b=='W' || b=='Ret' || b=='Hurt') style='background:#ef4444;';
+                            else if(b=='4'||b=='6') style='background:#fbbf24;color:black;';
+                            else if(b.toString().includes('WD')||b.toString().includes('NB')) style='background:#3b82f6;';
+                            return `<span class="hb-badge" style="margin-right:2px; ${style}">${disp}</span>`;
+                        }).join('');
+                        html += `<div class="history-row" style="margin-bottom:4px;"><span><span style="color:#aaa; font-size:0.8rem;">Ov ${idx+1}</span> <span class="history-bowler">${ov.bowler}</span></span><span class="history-balls">${bHtml}</span></div>`;
+                    });
+                }
+                
                 document.getElementById('prev-innings-content').innerHTML = html;
 
                 let tb = document.getElementById('target-disp');
@@ -526,7 +541,7 @@
                 
                 addLine("BATTING:", '#8b5cf6');
                 d.batters.forEach(b => {
-                    let fateLabel = b.fate ? ` (${b.fate === 'Retired Hurt' ? 'Hurt' : b.fate})` : (b.out ? " " : "*");
+                    let fateLabel = b.fate ? ` (${b.fate === 'Retired Hurt' ? 'Hurt' : 'Ret'})` : (b.out ? " " : "*");
                     let lineText = padStr(b.name + fateLabel, 15) + padStr(`${b.r} (${b.b})`, 10) + `[4s: ${b.f}, 6s: ${b.s}]`;
                     
                     let isHurt = b.fate === "Retired Hurt";
@@ -569,7 +584,7 @@
             
             allCurrentBatters.forEach(b => {
                 if (!b.name) return;
-                let fateLabel = b.fate ? ` (${b.fate === 'Retired Hurt' ? 'Hurt' : b.fate})` : (b.out ? " " : "*");
+                let fateLabel = b.fate ? ` (${b.fate === 'Retired Hurt' ? 'Hurt' : 'Ret'})` : (b.out ? " " : "*");
                 let lineText = padStr(b.name + fateLabel, 15) + padStr(`${b.r} (${b.b})`, 10) + `[4s: ${b.f}, 6s: ${b.s}]`;
                 
                 let isHurt = b.fate === "Retired Hurt";
