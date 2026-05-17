@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cricket Scorer: Flexible Return Engine</title>
+    <title>Cricket Scorer: Live Sync Engine</title>
     <style>
         body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 10px; margin: 0; }
         .card { background: #1e1e1e; padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; }
@@ -42,8 +42,9 @@
         th { color: #777; font-size: 0.8rem; border-bottom: 1px solid #333; padding: 5px; text-align: center; }
         th:first-child, td:first-child { text-align: left; }
         td { padding: 8px 5px; border-bottom: 1px solid #222; font-size: 0.9rem; }
+        
         .out-player { color: #666; text-decoration: line-through; }
-        .hurt-player { color: #3b82f6; font-style: italic; }
+        .hurt-player { color: #60a5fa; font-style: italic; }
         
         .setup-field { background: #252525; border: 1px solid #444; color: white; padding: 10px; border-radius: 5px; width: 100%; box-sizing: border-box; margin-bottom: 10px;}
         h4 { margin: 0 0 10px 0; color: #4ade80; }
@@ -155,7 +156,7 @@
             return str.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
         }
 
-        let state = JSON.parse(localStorage.getItem('cricket_v24')) || {
+        let state = JSON.parse(localStorage.getItem('cricket_v25')) || {
             active: false, innings: 1, target: null, maxOvers: 20, runs: 0, wickets: 0, balls: 0,
             striker: "b1", thisOver: [], oversHistory: [],
             b1: {name: "", r: 0, b: 0, f: 0, s: 0, out: false, fate: ""},
@@ -237,7 +238,7 @@
                 html += `<table><thead><tr><th>Batter</th><th>R</th><th>B</th><th>4s</th><th>6s</th></tr></thead><tbody>`;
                 d.batters.forEach(b => {
                     let cls = b.fate === "Retired Hurt" ? "class='hurt-player'" : (b.out ? "class='out-player'" : "");
-                    let displayFate = b.fate ? ` (${b.fate})` : "";
+                    let displayFate = b.fate ? ` (${b.fate === 'Retired Hurt' ? 'Hurt' : b.fate})` : "";
                     html += `<tr ${cls}><td>${b.name}${displayFate}</td><td>${b.r}</td><td>${b.b}</td><td>${b.f}</td><td>${b.s}</td></tr>`;
                 });
                 html += `</tbody></table>`;
@@ -277,11 +278,12 @@
             document.getElementById('name-bwl').innerText = `🏏 ${state.currBwl}`;
             document.getElementById('stat-bwl').innerText = `${getOvers(cb.b)} - ${cb.r} - ${cb.w}  (Wd: ${cb.wd} | Nb: ${cb.nb})`;
 
+            // FIX: Re-syncing the live UI table renderer to show all historical and resting states cleanly
             const batTable = document.getElementById('bat-scorecard');
             batTable.innerHTML = "";
             state.others.forEach(p => { 
                 let cls = p.fate === "Retired Hurt" ? "class='hurt-player'" : "class='out-player'";
-                let displayFate = p.fate ? ` (${p.fate})` : "";
+                let displayFate = p.fate ? ` (${p.fate === 'Retired Hurt' ? 'Hurt' : p.fate})` : "";
                 batTable.innerHTML += `<tr ${cls}><td>${p.name}${displayFate}</td><td>${p.r}</td><td>${p.b}</td><td>${p.f}</td><td>${p.s}</td></tr>`; 
             });
             batTable.innerHTML += `<tr><td>${state.b1.name}*</td><td>${state.b1.r}</td><td>${state.b1.b}</td><td>${state.b1.f}</td><td>${state.b1.s}</td></tr>`;
@@ -295,7 +297,7 @@
                 let econ = s.b === 0 ? "0.00" : (s.r / (s.b / 6)).toFixed(2);
                 bwlTable.innerHTML += `<tr><td>${bName}${isCurr}</td><td>${getOvers(s.b)}</td><td>0</td><td>${s.r}</td><td><strong>${s.w}</strong></td><td>${econ}</td><td>${s.wd}</td><td>${s.nb}</td></tr>`;
             }
-            localStorage.setItem('cricket_v24', JSON.stringify(state));
+            localStorage.setItem('cricket_v25', JSON.stringify(state));
         }
 
         function checkOverAndInnings() {
@@ -398,9 +400,7 @@
         
         function swap(m=true) { if(m) pushHistory(); state.striker = state.striker === 'b1' ? 'b2' : 'b1'; render(); }
 
-        // Core dismissal logic that handles incoming / returning players
         function handleNewIncomingBatter() {
-            // Check if there are any players currently in the Retired Hurt pool
             let injuredPool = state.others.filter(p => p.fate === "Retired Hurt");
             
             if(injuredPool.length > 0) {
@@ -410,15 +410,12 @@
                 let idx = parseInt(choice) - 1;
                 if(!isNaN(idx) && injuredPool[idx]) {
                     let targetPlayer = injuredPool[idx];
-                    // Pull out of the archive log pool
                     state.others = state.others.filter(p => !(p.name === targetPlayer.name && p.fate === "Retired Hurt"));
-                    // Restore them completely as the active live batsman object
                     state[state.striker] = {name: targetPlayer.name, r: targetPlayer.r, b: targetPlayer.b, f: targetPlayer.f, s: targetPlayer.s, out: false, fate: ""};
                     return;
                 }
             }
             
-            // Default setup for a brand new player entry
             let nextName = prompt("Enter new batsman name:");
             state[state.striker] = {name: formatName(nextName || "Batter " + (state.wickets + 2)), r: 0, b: 0, f: 0, s: 0, out: false, fate: ""};
         }
@@ -461,25 +458,18 @@
             render(); checkOverAndInnings();
         }
 
-        // NEW: Handles an injured batsman leaving without giving away a ticket/wicket
         function retiredHurt() {
             if(!confirm(`Mark ${state[state.striker].name} as Retired Hurt? (They can bat again later)`)) return;
             
             pushHistory();
-            state.balls += 1;
             state.thisOver.push('Hurt');
-            state[state.striker].b += 1;
-            state.bowlers[state.currBwl].b += 1;
+            state[state.striker].b += 0; // Does not add an official ball faced for stepping away mid-over execution
             
-            // Push to log without setting 'out: true' so they do not get a strikethrough line
             state.others.push({...state[state.striker], out: false, fate: "Retired Hurt"});
             
-            // Pull a brand new batsman out to fill the empty slot immediately
             let nextName = prompt(`${state[state.striker].name} is resting. Enter incoming batsman name:`);
             state[state.striker] = {name: formatName(nextName || "Batter"), r: 0, b: 0, f: 0, s: 0, out: false, fate: ""};
             
-            let legalDeliveries = state.thisOver.filter(b => typeof b === 'number' || b === 'W' || b === 'Ret' || b === 'Hurt').length;
-            if (legalDeliveries === 6) swap(false);
             render(); checkOverAndInnings();
         }
 
@@ -501,7 +491,7 @@
 
         function resetMatch() {
             if(confirm("Are you sure you want to erase this match completely and start a new one?")) {
-                localStorage.removeItem('cricket_v24');
+                localStorage.removeItem('cricket_v25');
                 location.reload();
             }
         }
@@ -532,7 +522,7 @@
                     let lineText = padStr(b.name + fateLabel, 15) + padStr(`${b.r} (${b.b})`, 10) + `[4s: ${b.f}, 6s: ${b.s}]`;
                     
                     let isHurt = b.fate === "Retired Hurt";
-                    addLine(lineText, isHurt ? '#3b82f6' : (b.out ? '#777777' : '#ffffff'), b.out, isHurt);
+                    addLine(lineText, isHurt ? '#60a5fa' : (b.out ? '#777777' : '#ffffff'), b.out, isHurt);
                 });
                 
                 addLine("");
@@ -557,7 +547,7 @@
                 addLine("");
             }
 
-            txtHeading = d ? "--- SECOND INNINGS ---" : "--- CURRENT INNINGS ---";
+            let txtHeading = d ? "--- SECOND INNINGS ---" : "--- CURRENT INNINGS ---";
             addLine(txtHeading, '#fbbf24');
             addLine(`Score:  ${state.runs} / ${state.wickets}`, '#4ade80');
             addLine(`Overs:  ${getOvers(state.balls)}`);
@@ -575,7 +565,7 @@
                 let lineText = padStr(b.name + fateLabel, 15) + padStr(`${b.r} (${b.b})`, 10) + `[4s: ${b.f}, 6s: ${b.s}]`;
                 
                 let isHurt = b.fate === "Retired Hurt";
-                addLine(lineText, isHurt ? '#3b82f6' : (b.out ? '#777777' : '#ffffff'), b.out, isHurt);
+                addLine(lineText, isHurt ? '#60a5fa' : (b.out ? '#777777' : '#ffffff'), b.out, isHurt);
             });
             
             addLine("");
