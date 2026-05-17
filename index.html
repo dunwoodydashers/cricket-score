@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cricket Scorer: Live Sync Engine</title>
+    <title>Cricket Scorer: Regulation Engine</title>
     <style>
         body { font-family: -apple-system, sans-serif; background: #121212; color: white; padding: 10px; margin: 0; }
         .card { background: #1e1e1e; padding: 15px; border-radius: 12px; margin-bottom: 10px; border: 1px solid #333; }
@@ -156,7 +156,7 @@
             return str.trim().toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
         }
 
-        let state = JSON.parse(localStorage.getItem('cricket_v25')) || {
+        let state = JSON.parse(localStorage.getItem('cricket_v26')) || {
             active: false, innings: 1, target: null, maxOvers: 20, runs: 0, wickets: 0, balls: 0,
             striker: "b1", thisOver: [], oversHistory: [],
             b1: {name: "", r: 0, b: 0, f: 0, s: 0, out: false, fate: ""},
@@ -278,7 +278,6 @@
             document.getElementById('name-bwl').innerText = `🏏 ${state.currBwl}`;
             document.getElementById('stat-bwl').innerText = `${getOvers(cb.b)} - ${cb.r} - ${cb.w}  (Wd: ${cb.wd} | Nb: ${cb.nb})`;
 
-            // FIX: Re-syncing the live UI table renderer to show all historical and resting states cleanly
             const batTable = document.getElementById('bat-scorecard');
             batTable.innerHTML = "";
             state.others.forEach(p => { 
@@ -297,7 +296,7 @@
                 let econ = s.b === 0 ? "0.00" : (s.r / (s.b / 6)).toFixed(2);
                 bwlTable.innerHTML += `<tr><td>${bName}${isCurr}</td><td>${getOvers(s.b)}</td><td>0</td><td>${s.r}</td><td><strong>${s.w}</strong></td><td>${econ}</td><td>${s.wd}</td><td>${s.nb}</td></tr>`;
             }
-            localStorage.setItem('cricket_v25', JSON.stringify(state));
+            localStorage.setItem('cricket_v26', JSON.stringify(state));
         }
 
         function checkOverAndInnings() {
@@ -310,7 +309,8 @@
                 return;
             }
             
-            let legalDeliveries = state.thisOver.filter(b => typeof b === 'number' || b === 'W' || b === 'Ret' || b === 'Hurt').length;
+            // Strictly check for 6 legal deliveries. 'Ret' and 'Hurt' do NOT count as legal balls.
+            let legalDeliveries = state.thisOver.filter(b => typeof b === 'number' || b === 'W').length;
             if (legalDeliveries === 6) {
                 state.oversHistory.push({ bowler: state.currBwl, balls: [...state.thisOver] });
                 state.thisOver = []; 
@@ -368,7 +368,7 @@
             state.bowlers[state.currBwl].r += r; state.bowlers[state.currBwl].b += 1;
             
             if (r % 2 !== 0) swap(false); 
-            let legalDeliveries = state.thisOver.filter(b => typeof b === 'number' || b === 'W' || b === 'Ret' || b === 'Hurt').length;
+            let legalDeliveries = state.thisOver.filter(b => typeof b === 'number' || b === 'W').length;
             if (legalDeliveries === 6) swap(false); 
             
             render(); checkOverAndInnings();
@@ -431,39 +431,34 @@
                 handleNewIncomingBatter();
             }
             
-            let legalDeliveries = state.thisOver.filter(b => typeof b === 'number' || b === 'W' || b === 'Ret' || b === 'Hurt').length;
+            let legalDeliveries = state.thisOver.filter(b => typeof b === 'number' || b === 'W').length;
             if (legalDeliveries === 6) swap(false); 
             render(); checkOverAndInnings();
         }
 
+        // BUG FIXED: Stripped out ball counters completely. Does NOT count as a ball.
         function retiredOut() {
             if(state.wickets >= 10) return;
             if(!confirm(`Are you sure you want to tactical Retire Out ${state[state.striker].name}?`)) return;
             
             pushHistory();
             state.wickets += 1; 
-            state.balls += 1; 
             state.thisOver.push('Ret'); 
-            state[state.striker].b += 1; 
-            state.bowlers[state.currBwl].b += 1; 
             
             state.others.push({...state[state.striker], out: true, fate: "Retired Out"});
             
             if (state.wickets < 10) {
                 handleNewIncomingBatter();
             }
-            
-            let legalDeliveries = state.thisOver.filter(b => typeof b === 'number' || b === 'W' || b === 'Ret' || b === 'Hurt').length;
-            if (legalDeliveries === 6) swap(false); 
             render(); checkOverAndInnings();
         }
 
+        // BUG FIXED: Stripped out ball counters completely. Does NOT count as a ball.
         function retiredHurt() {
             if(!confirm(`Mark ${state[state.striker].name} as Retired Hurt? (They can bat again later)`)) return;
             
             pushHistory();
             state.thisOver.push('Hurt');
-            state[state.striker].b += 0; // Does not add an official ball faced for stepping away mid-over execution
             
             state.others.push({...state[state.striker], out: false, fate: "Retired Hurt"});
             
@@ -491,7 +486,7 @@
 
         function resetMatch() {
             if(confirm("Are you sure you want to erase this match completely and start a new one?")) {
-                localStorage.removeItem('cricket_v25');
+                localStorage.removeItem('cricket_v26');
                 location.reload();
             }
         }
